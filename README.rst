@@ -1,7 +1,7 @@
-treestruct
-==========
+treegraph
+=========
 
-treestruct (temporary name?) is a Python library for extracting structural parameters from point clouds of individual trees.
+treegraph is a Python library for extracting structural parameters from point clouds of individual trees.
 
 This is still a work in progress and many features might change in the near future. 
 
