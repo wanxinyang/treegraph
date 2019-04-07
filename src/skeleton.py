@@ -37,7 +37,8 @@ def wood_skeleton(arr, slice_interval, min_cc_dist=0.05, max_cc_dist=0.1,
                   return_dist=False):
 
     base_id = np.argmin(arr[:, 2])
-    G = tls.utility.array_to_graph(arr, base_id, 3, 100, 0.15, 0.05)
+    G = tls.utility.array_to_graph(arr, base_id, 3, 100, slice_interval,
+                                   slice_interval / 2)
     node_ids, distance, path_dict = tls.utility.extract_path_info(G, base_id)
     nodes = arr[node_ids]
     dist = np.array(distance)
@@ -217,22 +218,23 @@ def skeleton_path(arr, base_id, dist, slice_interval):
     pair = {}
     pair_dist = {}
     for u in range(len(uids[:-1])):
-        mask_current = np.where(slice_ids == uids[u])[0]
-        mask_next = np.where(slice_ids >= uids[u])[0]
-        nbr_dist, nbr_ids = tls.utility.set_nbrs_knn(arr[mask_current],
-                                                     arr[mask_next], 1,
-                                                     return_dist=True)
-        nbr_ids = nbr_ids.astype(int)
-        for i, (ni, nd) in enumerate(zip(nbr_ids, nbr_dist)):
-            if nd > 0:
-                current_id = mask_next[i]
-                back_id = mask_current[ni][0]
-                if current_id in pair:
-                    pair[current_id].append(back_id)
-                    pair_dist[current_id].append(nd)
-                else:
-                    pair[current_id] = [back_id]
-                    pair_dist[current_id] = [nd]
+        mask_current = np.where(slice_ids == u)[0]
+        mask_next = np.where(slice_ids >= u)[0]
+        if len(mask_current) > 0:
+            nbr_dist, nbr_ids = tls.utility.set_nbrs_knn(arr[mask_current],
+                                                         arr[mask_next], 1,
+                                                         return_dist=True)
+            nbr_ids = nbr_ids.astype(int)
+            for i, (ni, nd) in enumerate(zip(nbr_ids, nbr_dist)):
+                if nd > 0:
+                    current_id = mask_next[i]
+                    back_id = mask_current[ni][0]
+                    if current_id in pair:
+                        pair[current_id].append(back_id)
+                        pair_dist[current_id].append(nd)
+                    else:
+                        pair[current_id] = [back_id]
+                        pair_dist[current_id] = [nd]
 
     # WOOD STRUCTURE UP UNTIL HERE
     for k, v in pair.iteritems():

@@ -137,7 +137,7 @@ def remove_duplicated_vertices(vertices, facets):
             else:
                 uf[fi] = [[i, j]]
 
-    nbrs = NearestNeighbors(radius=0.001).fit(vertices)
+    nbrs = NearestNeighbors(radius=0.0001).fit(vertices)
     ids = nbrs.radius_neighbors(vertices, return_distance=False)
 
     umask = np.zeros(vertices.shape[0])

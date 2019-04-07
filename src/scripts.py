@@ -29,13 +29,76 @@ __status__ = "Development"
 import numpy as np
 from geometry import cylinder_from_spheres
 from data_utils import (save_ply, save_struct, load_struct)
-from treestruct import main
+from main import (full_tree, small_branch)
+import os
 
 
-def generate_struct(filename, point_cloud, slice_interval, min_pts):
-    struct_data = main(point_cloud, slice_interval, min_pts)
-    save_struct(filename, struct_data)
+def single_tree(tree_file, slice_interval, min_pts, dist_threshold,
+                down_size, min_cc_dist, max_cc_dist, output_dir=''):
+    
+    fname = os.path.splitext(os.path.basename(tree_file))[0]
+    oname = os.path.join(output_dir, fname)
+    
+    try:
+        try:
+            point_cloud = np.loadtxt(tree_file)
+        except:
+            point_cloud = np.loadtxt(tree_file, skiprows=1)
+    except:
+        try:
+            point_cloud = np.loadtxt(tree_file, delimiter=',')
+        except:
+            point_cloud = np.loadtxt(tree_file, delimiter=',', skiprows=1)
+        
+    struct = generate_tree_struct(oname + '.struct', point_cloud[:, :3],
+                                 slice_interval, min_pts, down_size,
+                                 min_cc_dist, max_cc_dist)
+    struct2ply(oname + '.ply', struct, dist_threshold)
+    
     return
+
+
+def generate_tree_struct(filename, point_cloud, slice_interval, min_pts,
+                        down_size, min_cc_dist, max_cc_dist):
+
+    struct_data = full_tree(point_cloud, slice_interval, min_pts, down_size,
+                            min_cc_dist, max_cc_dist)
+    save_struct(filename, struct_data)
+    return struct_data
+
+
+def single_branch(branch_file, slice_interval, min_pts, dist_threshold,
+                  min_cc_dist, max_cc_dist, output_dir=''):
+    
+    fname = os.path.splitext(os.path.basename(branch_file))[0]
+    oname = os.path.join(output_dir, fname)
+    
+    try:
+        try:
+            point_cloud = np.loadtxt(branch_file)
+        except:
+            point_cloud = np.loadtxt(branch_file, skiprows=1)
+    except:
+        try:
+            point_cloud = np.loadtxt(branch_file, delimiter=',')
+        except:
+            point_cloud = np.loadtxt(branch_file, delimiter=',', skiprows=1)
+        
+    struct = generate_branch_struct(oname + '.struct', point_cloud[:, :3],
+                                    slice_interval, min_pts,
+                                    min_cc_dist, max_cc_dist)
+    struct2ply(oname + '.ply', struct, dist_threshold)
+    
+    return
+
+
+def generate_branch_struct(filename, point_cloud, slice_interval, min_pts,
+                           min_cc_dist, max_cc_dist):
+
+    struct_data = small_branch(point_cloud, slice_interval, min_pts,
+                               min_cc_dist, max_cc_dist)
+    save_struct(filename, struct_data)
+    return struct_data
 
 
 def struct2ply(filename, struct_data, dist_threshold):
@@ -68,28 +131,28 @@ def struct2ply(filename, struct_data, dist_threshold):
 
 
 
-if __name__ == '__main__':
-
-    # RUNNING A SIMPLE EXAMPLE.
-    # dist_threshold is the maximum length allowed for a cylinder. Cylinders
-    # longer than dist_threshold will be removed.
-    dist_threshold = 0.5
-    # min_pts is the minimum number of points around each skeleton point that
-    # should be used to fit a cylinder. Local neighborhoods containing less 
-    # than min_pts will be ignored in the fitting step.
-    min_pts = 10
-    # slice_interval sets the slicing of the wood skeleton, used only in the
-    # graph building step.
-    slice_interval = 0.1
-
-    # Loads wood-only point cloud.
-    wood = np.loadtxt('../data/test_data_wood.txt')
-    # Generate branch and cylinder data and saves as a custom "struct"
-    # file (nested Python dictionaries).
-    generate_struct('../data/test.struct', wood, slice_interval, min_pts)
-    # Loads struct file.
-    struct = load_struct('../data/test.struct')
-    # Generates 'ply' mesh file from branches/cylinders in struct.
-    struct2ply('../data/test.ply', struct, dist_threshold)
+#if __name__ == '__main__':
+#
+#    # RUNNING A SIMPLE EXAMPLE.
+#    # dist_threshold is the maximum length allowed for a cylinder. Cylinders
+#    # longer than dist_threshold will be removed.
+#    dist_threshold = 0.5
+#    # min_pts is the minimum number of points around each skeleton point that
+#    # should be used to fit a cylinder. Local neighborhoods containing less 
+#    # than min_pts will be ignored in the fitting step.
+#    min_pts = 10
+#    # slice_interval sets the slicing of the wood skeleton, used only in the
+#    # graph building step.
+#    slice_interval = 0.1
+#
+#    # Loads wood-only point cloud.
+#    wood = np.loadtxt('../data/test_data_wood.txt')
+#    # Generate branch and cylinder data and saves as a custom "struct"
+#    # file (nested Python dictionaries).
+#    generate_tee_struct('../data/test.struct', wood, slice_interval, min_pts)
+#    # Loads struct file.
+#    struct = load_struct('../data/test.struct')
+#    # Generates 'ply' mesh file from branches/cylinders in struct.
+#    struct2ply('../data/test.ply', struct, dist_threshold)
     
     
