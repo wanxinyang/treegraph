@@ -28,8 +28,10 @@ __status__ = "Development"
 
 from sklearn.cluster import KMeans
 import numpy as np
-import tlseparation as tls
+import pc2graph as p2g
 import networkx as nx
+from clustering import connected_component
+from knnsearch import set_nbrs_knn
 from filtering import max_filt
 
 
@@ -37,9 +39,9 @@ def wood_skeleton(arr, slice_interval, min_cc_dist=0.05, max_cc_dist=0.1,
                   return_dist=False):
 
     base_id = np.argmin(arr[:, 2])
-    G = tls.utility.array_to_graph(arr, base_id, 3, 100, slice_interval,
-                                   slice_interval / 2)
-    node_ids, distance, path_dict = tls.utility.extract_path_info(G, base_id)
+    G = p2g.array_to_graph(arr, base_id, 3, 100, slice_interval,
+                           slice_interval / 2)
+    node_ids, distance, path_dict = p2g.extract_path_info(G, base_id)
     nodes = arr[node_ids]
     dist = np.array(distance)
 
@@ -64,7 +66,7 @@ def wood_skeleton(arr, slice_interval, min_cc_dist=0.05, max_cc_dist=0.1,
     for i, s in enumerate(np.unique(slice_ids)):
         mask = slice_ids == s
         mask_ids = np.where(mask)[0]
-        cc = tls.utility.connected_component(nodes[mask], hh_coeff[i])
+        cc = connected_component(nodes[mask], hh_coeff[i])
         for c in np.unique(cc):
             cmask = c == cc
             center_coords = np.mean(nodes[mask][cmask], axis=0)
@@ -79,7 +81,7 @@ def wood_skeleton(arr, slice_interval, min_cc_dist=0.05, max_cc_dist=0.1,
     for c in skel:
         p = slice_points[tuple(c)]
         try:
-            dist, nbr = tls.utility.set_nbrs_knn(c.reshape(1, 3), arr[p], 1)
+            dist, nbr = set_nbrs_knn(c.reshape(1, 3), arr[p], 1)
             for i in range(dist.shape[0]):
                 distances[p[i]] = dist[i]
         except:
@@ -109,8 +111,7 @@ def wood_skeleton(arr, slice_interval, min_cc_dist=0.05, max_cc_dist=0.1,
 
 def upscale_skeleton(skeleton, downsample_cloud, original_cloud):
 
-    nbrs_ids = tls.utility.set_nbrs_knn(downsample_cloud, original_cloud, 1,
-                                        False)
+    nbrs_ids = set_nbrs_knn(downsample_cloud, original_cloud, 1, False)
     upscale_ids = {}
     for i, n in enumerate(nbrs_ids):
         if n[0] in upscale_ids:
@@ -139,9 +140,10 @@ def smooth_path_spheres(coords, radius, dist, slice_interval):
     for u in range(len(uids[:-1])):
         mask_current = np.where(slice_ids == uids[u])[0]
         mask_next = np.where(slice_ids >= uids[u])[0]
-        nbr_dist, nbr_ids = tls.utility.set_nbrs_knn(coords[mask_current],
-                                                     coords[mask_next], 1,
-                                                     return_dist=True)
+        nbr_dist, nbr_ids = set_nbrs_knn(coords[mask_current],
+                                         coords[mask_next], 1,
+                                         return_dist=True)
+                                         
         nbr_ids = nbr_ids.astype(int)
         for i, (ni, nd) in enumerate(zip(nbr_ids, nbr_dist)):
             if nd > 0:
@@ -167,9 +169,8 @@ def smooth_path_spheres(coords, radius, dist, slice_interval):
 def skeleton_path_distance(skeleton_coords):
 
     base_id = np.argmin(skeleton_coords[:, 2])
-    G = tls.utility.array_to_graph(skeleton_coords, base_id, 3, 100, 0.15,
-                                   0.05)
-    node_ids, distance, path_dict = tls.utility.extract_path_info(G, base_id)
+    G = p2g.array_to_graph(skeleton_coords, base_id, 3, 100, 0.15, 0.05)
+    node_ids, distance, path_dict = p2g.extract_path_info(G, base_id)
 
     return np.array(distance)
 
@@ -184,9 +185,9 @@ def get_path_nbrs(coords, radius, dist, slice_interval):
     for u in range(len(uids[:-1])):
         mask_current = np.where(slice_ids == uids[u])[0]
         mask_next = np.where(slice_ids >= uids[u])[0]
-        nbr_dist, nbr_ids = tls.utility.set_nbrs_knn(coords[mask_current],
-                                                     coords[mask_next], 1,
-                                                     return_dist=True)
+        nbr_dist, nbr_ids = set_nbrs_knn(coords[mask_current],
+                                         coords[mask_next], 1,
+                                         return_dist=True)
         nbr_ids = nbr_ids.astype(int)
         for i, (ni, nd) in enumerate(zip(nbr_ids, nbr_dist)):
             if nd > 0:
@@ -221,9 +222,9 @@ def skeleton_path(arr, base_id, dist, slice_interval):
         mask_current = np.where(slice_ids == u)[0]
         mask_next = np.where(slice_ids >= u)[0]
         if len(mask_current) > 0:
-            nbr_dist, nbr_ids = tls.utility.set_nbrs_knn(arr[mask_current],
-                                                         arr[mask_next], 1,
-                                                         return_dist=True)
+            nbr_dist, nbr_ids = set_nbrs_knn(arr[mask_current],
+                                             arr[mask_next], 1,
+                                             return_dist=True)
             nbr_ids = nbr_ids.astype(int)
             for i, (ni, nd) in enumerate(zip(nbr_ids, nbr_dist)):
                 if nd > 0:

@@ -27,7 +27,7 @@ __status__ = "Development"
 
 
 import numpy as np
-import tlseparation as tls
+from downsampling import downsample_cloud
 from fitting import fit_sphere
 from skeleton import (wood_skeleton, upscale_skeleton, skeleton_path,
                       min_radius_path)
@@ -37,8 +37,8 @@ from geometry import direction_vector
 def full_tree(wood, slice_interval, min_pts, down_size=0.1, min_cc_dist=0.03,
               max_cc_dist=0.2):
 
-    wood_down, wood_nbrs = tls.utility.downsample_cloud(wood, down_size,
-                                                        return_neighbors=True)
+    wood_down, wood_nbrs = downsample_cloud(wood, down_size,
+                                            return_neighbors=True)
     skeleton_downsample, skeleton_path_dist = wood_skeleton(wood_down,
                                                             down_size * 2,
                                                             min_cc_dist,
