@@ -131,28 +131,34 @@ def struct2ply(filename, struct_data, dist_threshold):
 
 
 
-#if __name__ == '__main__':
-#
-#    # RUNNING A SIMPLE EXAMPLE.
-#    # dist_threshold is the maximum length allowed for a cylinder. Cylinders
-#    # longer than dist_threshold will be removed.
-#    dist_threshold = 0.5
-#    # min_pts is the minimum number of points around each skeleton point that
-#    # should be used to fit a cylinder. Local neighborhoods containing less 
-#    # than min_pts will be ignored in the fitting step.
-#    min_pts = 10
-#    # slice_interval sets the slicing of the wood skeleton, used only in the
-#    # graph building step.
-#    slice_interval = 0.1
-#
-#    # Loads wood-only point cloud.
-#    wood = np.loadtxt('../data/test_data_wood.txt')
-#    # Generate branch and cylinder data and saves as a custom "struct"
-#    # file (nested Python dictionaries).
-#    generate_tee_struct('../data/test.struct', wood, slice_interval, min_pts)
-#    # Loads struct file.
-#    struct = load_struct('../data/test.struct')
-#    # Generates 'ply' mesh file from branches/cylinders in struct.
-#    struct2ply('../data/test.ply', struct, dist_threshold)
+if __name__ == '__main__':
+
+    # RUNNING A SIMPLE EXAMPLE.
+    # dist_threshold is the maximum length allowed for a cylinder. Cylinders
+    # longer than dist_threshold will be removed.
+    dist_threshold = 0.5
+    # min_pts is the minimum number of points around each skeleton point that
+    # should be used to fit a cylinder. Local neighborhoods containing less 
+    # than min_pts will be ignored in the fitting step.
+    min_pts = 10
+    # slice_interval sets the slicing of the wood skeleton, used only in the
+    # graph building step.
+    slice_interval = 0.1
+    # Setting up downsampling distance, used to reduce the number of points 
+    # and speed up processing.
+    down_size = 0.1
+    # Setting up minimum and maximum distances to use in the connected
+    # component analysis (part of the skeletonization process).
+    min_cc_dist = 0.03
+    max_cc_dist = 0.2
+
+    # Loads wood-only point cloud.
+    wood = np.loadtxt('../data/test_data_wood.txt')
+    # Generate branch and cylinder data and saves as a custom "struct"
+    # file (nested Python dictionaries).
+    struct = generate_tree_struct('../data/test.struct', wood, slice_interval,
+                                  min_pts, down_size, min_cc_dist, max_cc_dist)
+    # Generates 'ply' mesh file from branches/cylinders in struct.
+    struct2ply('../data/test.ply', struct, dist_threshold)
     
     

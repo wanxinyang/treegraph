@@ -84,7 +84,7 @@ def hough_circle(arr, radius_min=0.02, radius_max=0.4, radius_step=0.01):
 
 def fit_sphere(arr):
 
-    pca = PCA(n_components=3).fit(arr)
+    pca = PCA(n_components=3, svd_solver='full').fit(arr)
 
     arr_t = pca.transform(arr)
     arr_t = np.vstack((arr_t[:, 2], arr_t[:, 1], arr_t[:, 0])).T
