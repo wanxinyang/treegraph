@@ -20,7 +20,7 @@ __author__ = "Matheus Boni Vicari"
 __copyright__ = "Copyright 2019, treestruct"
 __credits__ = ["Matheus Boni Vicari"]
 __license__ = "GPL3"
-__version__ = "0.1"
+__version__ = "0.11"
 __maintainer__ = "Matheus Boni Vicari"
 __email__ = "matheus.boni.vicari@gmail.com"
 __status__ = "Development"
@@ -100,6 +100,7 @@ def full_tree(wood, slice_interval, min_pts, down_size=0.1, min_cc_dist=0.03,
     cyl_theta = {}
     cyl_phi = {}
     cyl_vol = {}
+    cyl_mae = {}
     for k1, r1 in nr.iteritems():
         k_path = path_ids[k1][::-1]
         if len(k_path) > 1:
@@ -134,6 +135,16 @@ def full_tree(wood, slice_interval, min_pts, down_size=0.1, min_cc_dist=0.03,
             cyl_theta[k1] = theta
             cyl_phi[k1] = phi
             cyl_vol[k1] = volume
+            
+            # Calculating goodness of fit using Mean Absolute Error (cyl_mae).
+            cyl_pts = np.vstack((wood[skeleton_original[k1]],
+                                 wood[skeleton_original[k2]]))
+            dpl = []
+            for p in cyl_pts:
+                dpl.append(np.linalg.norm(np.cross(c2 - c1, c1 - p)) /
+                           np.linalg.norm(c2 - c1))
+            cyl_mae[k1] = np.mean(dpl - rad)
+        
 
     hierarchy_dict = {}
     for k, v in cyl_p1.iteritems():
@@ -167,7 +178,7 @@ def full_tree(wood, slice_interval, min_pts, down_size=0.1, min_cc_dist=0.03,
         cyl_data[k] = {'p1': cyl_p1[k], 'p2': cyl_p2[k], 'rad': cyl_rad[k],
                        'length': cyl_len[k], 'theta': cyl_theta[k],
                        'phi': cyl_phi[k], 'volume': cyl_vol[k],
-                       'branch_id': bid}
+                       'branch_id': bid, 'MAE': cyl_mae[k]}
 
     branch_data = {}
     for k, v in hierarchy_dict.iteritems():
@@ -332,3 +343,4 @@ def small_branch(wood, slice_interval=0.01, min_pts=5, min_cc_dist=0.005,
     struct_data = {'cylinders': cyl_data, 'branches': branch_data}
 
     return struct_data
+

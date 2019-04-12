@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2019, Matheus Boni Vicari, TLSeparation Project
+# Copyright (c) 2019, Matheus Boni Vicari, treestruct
 # All rights reserved.
 #
 #
@@ -17,13 +17,14 @@
 
 
 __author__ = "Matheus Boni Vicari"
-__copyright__ = "Copyright 2017-2019, TLSeparation Project"
+__copyright__ = "Copyright 2019, treestruct"
 __credits__ = ["Matheus Boni Vicari"]
 __license__ = "GPL3"
-__version__ = "0.1"
+__version__ = "0.11"
 __maintainer__ = "Matheus Boni Vicari"
 __email__ = "matheus.boni.vicari@gmail.com"
 __status__ = "Development"
+
 
 import numpy as np
 from scipy.spatial.distance import cdist
@@ -136,3 +137,4 @@ def upsample_cloud(upsample_ids, neighbors_dict):
     ids = [neighbors_dict[i] for i in upsample_ids if i in neighbors_dict]
 
     return np.unique([i for j in ids for i in j])
+

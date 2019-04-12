@@ -20,7 +20,7 @@ __author__ = "Matheus Boni Vicari"
 __copyright__ = "Copyright 2019, treestruct"
 __credits__ = ["Matheus Boni Vicari"]
 __license__ = "GPL3"
-__version__ = "0.1"
+__version__ = "0.11"
 __maintainer__ = "Matheus Boni Vicari"
 __email__ = "matheus.boni.vicari@gmail.com"
 __status__ = "Development"
@@ -172,3 +172,4 @@ def remove_duplicated_vertices(vertices, facets):
 
 def direction_vector(p1, p2):
     return (p2 - p1) / np.linalg.norm(p2 - p1)
+

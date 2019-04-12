@@ -20,7 +20,7 @@ __author__ = "Matheus Boni Vicari"
 __copyright__ = "Copyright 2019, treestruct"
 __credits__ = ["Matheus Boni Vicari"]
 __license__ = "GPL3"
-__version__ = "0.1"
+__version__ = "0.11"
 __maintainer__ = "Matheus Boni Vicari"
 __email__ = "matheus.boni.vicari@gmail.com"
 __status__ = "Development"
@@ -94,3 +94,5 @@ def fit_sphere(arr):
     center_inv = pca.inverse_transform(center)
 
     return center_inv, rad, error
+
+

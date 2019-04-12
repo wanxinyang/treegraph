@@ -20,7 +20,7 @@ __author__ = "Matheus Boni Vicari"
 __copyright__ = "Copyright 2019, treestruct"
 __credits__ = ["Matheus Boni Vicari"]
 __license__ = "GPL3"
-__version__ = "0.1"
+__version__ = "0.11"
 __maintainer__ = "Matheus Boni Vicari"
 __email__ = "matheus.boni.vicari@gmail.com"
 __status__ = "Development"
@@ -28,9 +28,10 @@ __status__ = "Development"
 
 import numpy as np
 from geometry import cylinder_from_spheres
-from data_utils import (save_ply, save_struct, load_struct)
+from data_utils import (save_ply, save_struct)
 from main import (full_tree, small_branch)
 import os
+from downsampling import downsample_cloud
 
 
 def single_tree(tree_file, slice_interval, min_pts, dist_threshold,
@@ -68,7 +69,7 @@ def generate_tree_struct(filename, point_cloud, slice_interval, min_pts,
 
 
 def single_branch(branch_file, slice_interval, min_pts, dist_threshold,
-                  min_cc_dist, max_cc_dist, output_dir=''):
+                  down_size, min_cc_dist, max_cc_dist, output_dir=''):
     
     fname = os.path.splitext(os.path.basename(branch_file))[0]
     oname = os.path.join(output_dir, fname)
@@ -86,16 +87,19 @@ def single_branch(branch_file, slice_interval, min_pts, dist_threshold,
         
     struct = generate_branch_struct(oname + '.struct', point_cloud[:, :3],
                                     slice_interval, min_pts,
-                                    min_cc_dist, max_cc_dist)
+                                    down_size, min_cc_dist, max_cc_dist)
     struct2ply(oname + '.ply', struct, dist_threshold)
     
     return
 
 
 def generate_branch_struct(filename, point_cloud, slice_interval, min_pts,
-                           min_cc_dist, max_cc_dist):
+                           down_size, min_cc_dist, max_cc_dist):
+    
+    # TEMPORARY
+    down_cloud = downsample_cloud(point_cloud, down_size)
 
-    struct_data = small_branch(point_cloud, slice_interval, min_pts,
+    struct_data = small_branch(down_cloud, slice_interval, min_pts,
                                min_cc_dist, max_cc_dist)
     save_struct(filename, struct_data)
     return struct_data
@@ -127,38 +131,7 @@ def struct2ply(filename, struct_data, dist_threshold):
         new_ft = np.vstack((new_ft, (tf + np.max(new_ft) + 1)))
 
     save_ply(filename, new_vv, new_ft, scalar_array=new_ids)
-    return
-
-
-
-if __name__ == '__main__':
-
-    # RUNNING A SIMPLE EXAMPLE.
-    # dist_threshold is the maximum length allowed for a cylinder. Cylinders
-    # longer than dist_threshold will be removed.
-    dist_threshold = 0.5
-    # min_pts is the minimum number of points around each skeleton point that
-    # should be used to fit a cylinder. Local neighborhoods containing less 
-    # than min_pts will be ignored in the fitting step.
-    min_pts = 10
-    # slice_interval sets the slicing of the wood skeleton, used only in the
-    # graph building step.
-    slice_interval = 0.1
-    # Setting up downsampling distance, used to reduce the number of points 
-    # and speed up processing.
-    down_size = 0.1
-    # Setting up minimum and maximum distances to use in the connected
-    # component analysis (part of the skeletonization process).
-    min_cc_dist = 0.03
-    max_cc_dist = 0.2
-
-    # Loads wood-only point cloud.
-    wood = np.loadtxt('../data/test_data_wood.txt')
-    # Generate branch and cylinder data and saves as a custom "struct"
-    # file (nested Python dictionaries).
-    struct = generate_tree_struct('../data/test.struct', wood, slice_interval,
-                                  min_pts, down_size, min_cc_dist, max_cc_dist)
-    # Generates 'ply' mesh file from branches/cylinders in struct.
-    struct2ply('../data/test.ply', struct, dist_threshold)
     
-    
+    return   
+
+

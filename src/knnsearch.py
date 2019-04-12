@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2019, Matheus Boni Vicari, TLSeparation Project
+# Copyright (c) 2019, Matheus Boni Vicari, treestruct
 # All rights reserved.
 #
 #
@@ -17,13 +17,14 @@
 
 
 __author__ = "Matheus Boni Vicari"
-__copyright__ = "Copyright 2017-2019, TLSeparation Project"
+__copyright__ = "Copyright 2019, treestruct"
 __credits__ = ["Matheus Boni Vicari"]
 __license__ = "GPL3"
-__version__ = "0.1"
+__version__ = "0.11"
 __maintainer__ = "Matheus Boni Vicari"
 __email__ = "matheus.boni.vicari@gmail.com"
 __status__ = "Development"
+
 
 import numpy as np
 from sklearn.neighbors import NearestNeighbors
@@ -237,3 +238,4 @@ def subset_nbrs(distance, indices, new_knn, block_size=100000):
 
     # Returning new_distance and new_indices as arrays.
     return np.asarray(new_distance), np.asarray(new_indices)
+
