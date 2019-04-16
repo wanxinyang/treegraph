@@ -28,11 +28,18 @@ __status__ = "Development"
 
 import numpy as np
 from geometry import cylinder_from_spheres
-from data_utils import (save_ply, save_struct)
+from data_utils import (save_ply, save_struct, load_struct)
 from main import (full_tree, small_branch)
 import os
 from downsampling import downsample_cloud
 
+
+#def generate_struct_summary(struc_file):
+#    
+#    struct = load_struct(struc_file)
+#    
+#    volume = np.sum([c['volume'] for c in cyl_data.values()])
+#    length = np.sum([c['length'] for c in cyl_data.values()])
 
 def single_tree(tree_file, slice_interval, min_pts, dist_threshold,
                 down_size, min_cc_dist, max_cc_dist, output_dir=''):

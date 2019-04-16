@@ -218,7 +218,7 @@ def skeleton_path(arr, base_id, dist, slice_interval):
     uids = np.unique(slice_ids)
     pair = {}
     pair_dist = {}
-    for u in range(len(uids[:-1])):
+    for u in uids[:-1]:
         mask_current = np.where(slice_ids == u)[0]
         mask_next = np.where(slice_ids >= u)[0]
         if len(mask_current) > 0:

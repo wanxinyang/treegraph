@@ -29,6 +29,8 @@ __status__ = "Development"
 import numpy as np
 from scripts import (generate_tree_struct, generate_branch_struct,
                      struct2ply)
+from reporting import pdf_report
+
 
 def test_full_tree():
 
@@ -61,6 +63,13 @@ def test_full_tree():
     # Generates 'ply' mesh file from branches/cylinders in struct.
     struct2ply('../data/test_tree.ply', struct, dist_threshold)
     
+    # Generates a report of the structural reconstruction.
+    try:
+        pdf_report('../data/test_tree.pdf', '../data/test_tree.txt',
+                   '../data/test_tree.struct', '../data/test_tree.ply')    
+    except:
+        pass  # Mayavi not installed.
+
     return
 
 
@@ -94,6 +103,13 @@ def test_small_branch():
                                     min_cc_dist, max_cc_dist)
     # Generates 'ply' mesh file from branches/cylinders in struct.
     struct2ply('../data/test_branch.ply', struct, dist_threshold)
+
+    # Generates a report of the structural reconstruction.
+    try:
+        pdf_report('../data/test_branch.pdf', '../data/test_branch.txt',
+                   '../data/test_branch.struct', '../data/test_branch.ply')
+    except:
+        pass  # Mayavi not installed.
     
     return
 

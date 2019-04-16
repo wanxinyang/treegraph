@@ -192,8 +192,13 @@ def full_tree(wood, slice_interval, min_pts, down_size=0.1, min_cc_dist=0.03,
         branch_data[k] = {'branch_volume': bvol, 'branch_length': blen,
                           'parent_branch': bcon,
                           'cylinder_ids': v}
+        
+    input_parameters = {'slice_interval': slice_interval, 'min_pts': min_pts,
+                        'down_size': down_size, 'min_cc_dist': min_cc_dist,
+                        'max_cc_dist': max_cc_dist}
 
-    struct_data = {'cylinders': cyl_data, 'branches': branch_data}
+    struct_data = {'cylinders': cyl_data, 'branches': branch_data,
+                   'input_parameters': input_parameters}
 
     return struct_data
 
@@ -340,7 +345,11 @@ def small_branch(wood, slice_interval=0.01, min_pts=5, min_cc_dist=0.005,
                           'parent_branch': bcon,
                           'cylinder_ids': v}
 
-    struct_data = {'cylinders': cyl_data, 'branches': branch_data}
+    input_parameters = {'slice_interval': slice_interval, 'min_pts': min_pts,
+                        'min_cc_dist': min_cc_dist, 'max_cc_dist': max_cc_dist}
+
+    struct_data = {'cylinders': cyl_data, 'branches': branch_data,
+                   'input_parameters': input_parameters}
 
     return struct_data
 

@@ -26,6 +26,7 @@ __email__ = "matheus.boni.vicari@gmail.com"
 __status__ = "Development"
 
 
+import numpy as np
 import pickle
 
 
@@ -81,3 +82,43 @@ property list uint8 int32 vertex_indices\nend_header\n" %
 
     return
 
+
+def load_ply(filename):
+
+    with open(filename, 'r') as f:
+        ply_str = f.readlines()
+        
+    for p in ply_str:
+        if 'element vertex' in p:
+            n_vertex = int(p.split(' ')[-1])
+            break
+        
+    for p in ply_str:
+        if 'element face' in p:
+            n_facets = int(p.split(' ')[-1])
+            break
+        
+    for i, p in enumerate(ply_str):
+        if 'end_header' in p:
+            vertex_start = i + 1
+            break
+        
+    vertex_end = vertex_start + n_vertex
+    facets_end = vertex_end + n_facets
+    vertex_str = ply_str[vertex_start:vertex_end]
+    facets_str = ply_str[vertex_end:facets_end]
+    
+    vertex_data = np.array([i.split(' ') for i in vertex_str]).astype(float)
+    facets_data = np.array([i.split(' ') for i in facets_str]).astype(int)
+    
+    if vertex_data.shape[1] == 4:
+        vertex_coords = vertex_data[:, :3]
+        vertex_ids = vertex_data[:, 3]
+    else:
+        vertex_coords = vertex_data[:, :3]
+        vertex_ids = np.zeros(vertex_coords.shape[0], dtype=int)
+    
+    facets_tri = facets_data[:, 1:]
+    
+    return vertex_coords, vertex_ids, facets_tri
+    
