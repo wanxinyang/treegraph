@@ -142,3 +142,5 @@ def struct2ply(filename, struct_data, dist_threshold):
     return   
 
 
+
+

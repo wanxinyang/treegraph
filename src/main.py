@@ -32,13 +32,20 @@ from fitting import fit_sphere
 from skeleton import (wood_skeleton, upscale_skeleton, skeleton_path,
                       min_radius_path)
 from geometry import direction_vector
+from metrics import (lower_quantile_max_cc, upper_quantile_min_cc)
 
 
-def full_tree(wood, slice_interval, min_pts, down_size=0.1, min_cc_dist=0.03,
-              max_cc_dist=0.2):
+def full_tree(wood, slice_interval, min_pts, down_size=0.1, min_cc_dist='auto',
+              max_cc_dist='auto'):
 
     wood_down, wood_nbrs = downsample_cloud(wood, down_size,
                                             return_neighbors=True)
+    
+    if max_cc_dist == 'auto':
+        max_cc_dist = lower_quantile_max_cc(wood_down)
+    if min_cc_dist == 'auto':
+        min_cc_dist = upper_quantile_min_cc(wood_down)
+    
     skeleton_downsample, skeleton_path_dist = wood_skeleton(wood_down,
                                                             down_size * 2,
                                                             min_cc_dist,
@@ -203,9 +210,14 @@ def full_tree(wood, slice_interval, min_pts, down_size=0.1, min_cc_dist=0.03,
     return struct_data
 
 
-def small_branch(wood, slice_interval=0.01, min_pts=5, min_cc_dist=0.005,
-                 max_cc_dist=0.02):
-
+def small_branch(wood, slice_interval=0.01, min_pts=5, min_cc_dist='auto',
+                 max_cc_dist='auto'):
+    
+    if max_cc_dist == 'auto':
+        max_cc_dist = lower_quantile_max_cc(wood)
+    if min_cc_dist == 'auto':
+        min_cc_dist = max_cc_dist
+        
     skeleton_original, skeleton_path_dist = wood_skeleton(wood, min_cc_dist * 2,
                                                           min_cc_dist, max_cc_dist,
                                                           return_dist=True)
@@ -306,6 +318,8 @@ def small_branch(wood, slice_interval=0.01, min_pts=5, min_cc_dist=0.005,
                 if skel_cyl_ids[p] > 2:
                     hierarchy_dict.setdefault(pids[j - 1], []).append(k)
                     break
+                elif p == base_id:
+                    hierarchy_dict.setdefault(pids[j - 1], []).append(k)
 
     branch_ids = {}
     for k, v in hierarchy_dict.iteritems():
@@ -352,4 +366,6 @@ def small_branch(wood, slice_interval=0.01, min_pts=5, min_cc_dist=0.005,
                    'input_parameters': input_parameters}
 
     return struct_data
+
+
 

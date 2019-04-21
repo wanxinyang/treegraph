@@ -218,7 +218,7 @@ def skeleton_path(arr, base_id, dist, slice_interval):
     uids = np.unique(slice_ids)
     pair = {}
     pair_dist = {}
-    for u in uids[:-1]:
+    for ui, u in enumerate(uids[:-1]):
         mask_current = np.where(slice_ids == u)[0]
         mask_next = np.where(slice_ids >= u)[0]
         if len(mask_current) > 0:
@@ -236,7 +236,15 @@ def skeleton_path(arr, base_id, dist, slice_interval):
                     else:
                         pair[current_id] = [back_id]
                         pair_dist[current_id] = [nd]
-
+    
+    nbr_dist, nbr_ids = set_nbrs_knn(arr,
+                                     arr[base_id].reshape(1, -1), 2,
+                                     return_dist=True)
+    nbr_ids = nbr_ids.astype(int)
+    n = nbr_ids[0, np.argmax(nbr_dist)]
+    d = nbr_dist[0, np.argmax(nbr_dist)]
+    G_skeleton.add_weighted_edges_from([(base_id, n, d)])
+    
     # WOOD STRUCTURE UP UNTIL HERE
     for k, v in pair.iteritems():
         d = pair_dist[k]
@@ -260,5 +268,7 @@ def min_radius_path(radius_dict, path_ids):
             new_radius.setdefault(vm, []).append(rr_v2[i])
 
     return new_radius
+
+
 
 

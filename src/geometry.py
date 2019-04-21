@@ -28,7 +28,7 @@ __status__ = "Development"
 
 import numpy as np
 from sklearn.neighbors import NearestNeighbors
-from cylinder_fitting.geometry import rotation_matrix_from_axis_and_angle
+from third_party.cylinder_fitting import rotation_matrix_from_axis_and_angle
 
 
 def cylinder_from_spheres(sph1, sph2, rad, n_components=40):
@@ -172,4 +172,6 @@ def remove_duplicated_vertices(vertices, facets):
 
 def direction_vector(p1, p2):
     return (p2 - p1) / np.linalg.norm(p2 - p1)
+
+
 

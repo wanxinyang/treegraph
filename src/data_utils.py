@@ -122,3 +122,4 @@ def load_ply(filename):
     
     return vertex_coords, vertex_ids, facets_tri
     
+

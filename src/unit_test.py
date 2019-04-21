@@ -48,9 +48,11 @@ def test_full_tree():
     # and speed up processing.
     down_size = 0.1
     # Setting up minimum and maximum distances to use in the connected
-    # component analysis (part of the skeletonization process).
-    min_cc_dist = 0.03
-    max_cc_dist = 0.2
+    # component analysis (part of the skeletonization process). The 'auto'
+    # keyword tells the code in 'full_tree' to calculate optimal values for
+    # both parameters.
+    min_cc_dist = 'auto'
+    max_cc_dist = 'auto'
 
     # Loads wood-only point cloud.
     wood = np.loadtxt('../data/test_tree.txt')
@@ -89,9 +91,12 @@ def test_small_branch():
     # and speed up processing.
     down_size = 0.002
     # Setting up minimum and maximum distances to use in the connected
-    # component analysis (part of the skeletonization process).
-    min_cc_dist = 0.005
-    max_cc_dist = 0.01
+    # component analysis (part of the skeletonization process). The 'auto'
+    # keyword tells the code in 'full_tree' to calculate optimal values for
+    # both parameters.
+    min_cc_dist = 'auto'
+#    min_cc_dist = 0.0
+    max_cc_dist = 'auto'
 
     # Loads wood-only point cloud.
     wood = np.loadtxt('../data/test_branch.txt', delimiter=',')
@@ -112,4 +117,6 @@ def test_small_branch():
         pass  # Mayavi not installed.
     
     return
+
+
 
