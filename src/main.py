@@ -28,7 +28,7 @@ __status__ = "Development"
 
 import numpy as np
 from downsampling import downsample_cloud
-from fitting import fit_sphere
+from fitting import fit_sphere, fit_sphere_mod
 from skeleton import (wood_skeleton, upscale_skeleton, skeleton_path,
                       min_radius_path)
 from geometry import direction_vector
@@ -52,12 +52,17 @@ def full_tree(wood, slice_interval, min_pts, down_size=0.1, min_cc_dist='auto',
                                                             max_cc_dist,
                                                             return_dist=True)
 
+    # Pack items (coordinates) and values (row ids) in skeleton_downsample
+    # into two dictionaries skel_center and skel_ids,  where the new keys are 
+    # the item number from skeleton_downsample.
     skel_center = {}
     skel_ids = {}
     for i, (k, v) in enumerate(skeleton_downsample.iteritems()):
         skel_center[i] = k
         skel_ids[i] = v
 
+    # Pack items (distance) in skeeton_path_dist into a dictionary skel_dist
+    # where keys are the row number from wood_down.
     skel_dist = {}
     for i, (k, v) in enumerate(skeleton_path_dist.iteritems()):
         skel_dist[i] = v
@@ -71,12 +76,35 @@ def full_tree(wood, slice_interval, min_pts, down_size=0.1, min_cc_dist='auto',
     path_ids, path_distance = skeleton_path(skel_coords, base_id, dist,
                                             slice_interval)
 
+
+    nl = {}
+    for k, v in path_ids.iteritems():
+        if len(v) > 1:
+            nl[k] = v[-2]
+    nu = {}
+    for k, v in nl.iteritems():
+        nu[v] = k
+        
+        
     skel_fit_radius = {}
     skel_fit_center = {}
     skel_fit_error = {}
     for i, (k, v) in enumerate(skeleton_original.iteritems()):
         if len(v) > min_pts:
-            center, rad, error = fit_sphere(wood[v])
+            if k in nl:
+                if k in nu:
+                    vec = np.vstack((skel_coords[nl[k]], skel_coords[k],
+                                     skel_coords[nu[k]]))
+                else:
+                    vec = np.vstack((skel_coords[nl[k]], skel_coords[k]))
+            else:
+                if k in nu:
+                    vec = np.vstack((skel_coords[k], skel_coords[nu[k]]))
+                else:
+                    vec = skel_coords[k].reshape(1, 3)
+                    
+                    
+            center, rad, error = fit_sphere_mod(wood[v], vec)
             skel_fit_radius[i] = rad
             skel_fit_center[i] = center
             skel_fit_error[i] = error

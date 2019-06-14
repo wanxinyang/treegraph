@@ -99,4 +99,21 @@ def fit_sphere(arr):
 
 
 
+def fit_sphere_mod(arr, vector):
+
+
+    if vector.shape[0] >= 3:
+        pca = PCA(n_components=3, svd_solver='full').fit(vector)
+    else:
+        pca = PCA(n_components=3, svd_solver='full').fit(arr)
+
+
+    arr_t = pca.transform(arr)
+    arr_t = np.vstack((arr_t[:, 2], arr_t[:, 1], arr_t[:, 0])).T
+
+    _, center, rad, error = fit(arr_t)
+
+    center_inv = pca.inverse_transform(center)
+
+    return center_inv, rad, error
 
