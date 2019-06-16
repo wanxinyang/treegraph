@@ -84,22 +84,7 @@ from third_party.cylinder_fitting import fit
 #    return grid[sph_mask], opt_rad[sph_mask]
 
 
-def fit_sphere(arr):
-
-    pca = PCA(n_components=3, svd_solver='full').fit(arr)
-
-    arr_t = pca.transform(arr)
-    arr_t = np.vstack((arr_t[:, 2], arr_t[:, 1], arr_t[:, 0])).T
-
-    _, center, rad, error = fit(arr_t)
-
-    center_inv = pca.inverse_transform(center)
-
-    return center_inv, rad, error
-
-
-
-def fit_sphere_mod(arr, vector):
+def fit_sphere(arr, vector):
 
 
     if vector.shape[0] >= 3:
