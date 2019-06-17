@@ -28,7 +28,7 @@ __status__ = "Development"
 
 import numpy as np
 from downsampling import downsample_cloud
-from fitting import fit_sphere, fit_sphere_mod
+from fitting import fit_sphere
 from skeleton import (wood_skeleton, upscale_skeleton, skeleton_path,
                       min_radius_path)
 from geometry import direction_vector
