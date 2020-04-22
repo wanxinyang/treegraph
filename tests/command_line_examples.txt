@@ -1,3 +1,0 @@
-python command_line.py --script single_tree --files /home/matheus/MEGA/PhD/Data/LiDAR/separation_paper/clouds/corrected1/*wood.txt --output_dir /home/matheus/MEGA/PhD/Data/struct/separation_paper/ --slice_interval 0.05 --min_pts 5 --dist_threshold 0.5 --down_size 0.1
-
-
