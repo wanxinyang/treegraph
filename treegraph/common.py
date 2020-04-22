@@ -246,8 +246,7 @@ def skeleton_path(self, min_dist=1):
                 dist = nbr_dist.min()
             n += 1
             if n > 10: 
-                print(row)
-                break
+                continue
 
         nbr_id = nbrs[nbrs.index[np.argmin(nbr_dist)]]        
         edges = edges.append({'node1':int(row.node_id), 
