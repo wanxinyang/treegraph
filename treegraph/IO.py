@@ -2,19 +2,19 @@ import pandas as pd
 import ply_io
 import json
 import datetime
-from cyl2ply import pandas2ply
 
-from common import *
+from treegraph.third_party.cyl2ply import pandas2ply
+from treegraph.common import *
 
 
-def save_pc(self, path):
+def save_centres(self, path):
     
     ply_io.write_ply(path, self.centres.rename(columns={'cx':'x', 'cy':'y', 'cz':'z'}))
 
     
-def save_centres(self, path):
+def save_pc(self, path, downsample=False):
     
-    ply_io.write_ply(path, self.pc[self.pc.columns.drop('VX')])
+    ply_io.write_ply(path, self.pc[self.pc.columns.drop('VX')].loc[self.pc.downsample if downsample else self.pc.index])
 
     
 def to_ply(self, path, attribute='nbranch'):
@@ -68,12 +68,17 @@ def qsm2json(self, path, name=None):
 
     for ix, row in nodes.iterrows():
 
-        tip_id = self.tip_paths.loc[self.tip_paths.nbranch == row.nbranch].index[0]
+#         tip_id = self.tip_paths.loc[self.tip_paths.nbranch == row.nbranch].index[0]
+        tip_id = self.centres.loc[(self.centres.nbranch == row.nbranch) & 
+                          (self.centres.is_tip)].node_id.values[0]
         branch_path = np.array(self.path_ids[int(tip_id)], dtype=int)
         idx = np.where(branch_path == int(row.node_id))[0][0]
         next_node = branch_path[idx + 1]
         row = row.append(pd.Series(index=['next_node'], data=next_node))
-        nodes.loc[ix, 'branch_angle'] = node_angle_f(self, row)
+        print(row)
+        node_angle_f(self.centres[self.centres.node_id == row.child_node][['cx', 'cy', 'cz']].values,
+                                                     self.centres[self.centres.node_id == row.node_id][['cx', 'cy', 'cz']].values,
+                                                     self.centres[self.centres.node_id == row.next_node][['cx', 'cy', 'cz']].values)[0][0]
 
         nodes.loc[ix, 'surface_area_b'] = self.cyls[self.cyls.p1.isin(branch_path[idx:])].surface_area.sum()
         nodes.loc[ix, 'length_b'] = self.cyls[self.cyls.p1.isin(branch_path[idx:])].length.sum()
