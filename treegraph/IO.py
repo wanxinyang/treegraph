@@ -75,7 +75,6 @@ def qsm2json(self, path, name=None):
         idx = np.where(branch_path == int(row.node_id))[0][0]
         next_node = branch_path[idx + 1]
         row = row.append(pd.Series(index=['next_node'], data=next_node))
-        print(row)
         node_angle_f(self.centres[self.centres.node_id == row.child_node][['cx', 'cy', 'cz']].values,
                                                      self.centres[self.centres.node_id == row.node_id][['cx', 'cy', 'cz']].values,
                                                      self.centres[self.centres.node_id == row.next_node][['cx', 'cy', 'cz']].values)[0][0]
