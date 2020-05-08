@@ -1,73 +1,86 @@
 import datetime
 import sys
 import os
+import argparse
 
 from treegraph.common import *
-from treegraph.cyl2ply import pandas2ply
+from treegraph.IO import *
+from treegraph.downsample import *
+from treegraph.build_skeleton import *
+from treegraph.build_graph import *
+from treegraph.attribute_centres import *
+from treegraph.split_furcation import *
+from treegraph.fit_cylinders import *
+from treegraph.connected_cylinders import *
 
 
-def run(path, base_idx=None):
+def run(path, base_idx=None, attribute='nbranch', radius='m_radius', 
+        split_furcations=2, verbose=False):
 
     # read in pc
     pc = ply_io.read_ply(path)
     pc.rename(columns={x:x.replace('scalar_', '') for x in pc.columns}, inplace=True)
 
-    print('begin:', datetime.datetime.now())
+    if verbose: print('begin:', datetime.datetime.now())
     self = treegraph(pc, slice_interval=.2, min_pts=10, base_location=base_idx)
-    
+
     # downsample branches before running treegraph
-    downsample(self, vlength=.001)
+    downsample(self, vlength=.0009, remove_noise=False)
     self.pc = self.pc[self.pc.downsample]
     del self.pc['downsample']
     self.pc.reset_index(inplace=True)
-    
+
     # run treegraph
-    print('downsample:', datetime.datetime.now())
-    generate_graph(self)
-    print('generate_graph:', datetime.datetime.now())
+    if verbose: print('generate_graph:', datetime.datetime.now())
+    generate_distance_graph(self, downsample_cloud=.01)
+    if verbose: print('calculate_voxel_length:', datetime.datetime.now())    
     calculate_voxel_length(self, exponent=1, maxbin=.02, minbin=.005)
-    print('calculate_voxel_length:', datetime.datetime.now())
+    if verbose: print('skeleton:', datetime.datetime.now())
     skeleton(self, eps=.005)
-    print('skeleton:', datetime.datetime.now())
-    skeleton_path(self)
-    print('skeleton_path:', datetime.datetime.now())
-    attribute_centres(self)
-    print('attribute_centres:', datetime.datetime.now())
+    if verbose: print('skeleton_path:', datetime.datetime.now())
+    self.path_distance, self.path_ids = skeleton_path(self.centres, max_dist=.1)
+    if verbose: print('attribute_centres:', datetime.datetime.now())
+    self.centres = attribute_centres(self.centres, self.path_ids)
 
     # split furcations and reattribute
-    split_furcation(self)
-    print('split_furcation:', datetime.datetime.now())
-    skeleton_path(self, counter=True)
-    print('skeleton_path:', datetime.datetime.now())
-    attribute_centres(self)
-    print('attribute_centres:', datetime.datetime.now())
-    
-    split_furcation(self)
-    print('split_furcation:', datetime.datetime.now())
-    skeleton_path(self, counter=True)
-    print('skeleton_path:', datetime.datetime.now())
-    attribute_centres(self)
-    print('attribute_centres:', datetime.datetime.now())
+    for _ in range(split_furcations):
+        if verbose: print('split_furcation:', datetime.datetime.now())
+        split_furcation(self)
+        if verbose: print('\tskeleton_path:', datetime.datetime.now())
+        self.path_distance, self.path_ids = skeleton_path(self.centres, max_dist=.1)
+        if verbose: print('\tattribute_centres:', datetime.datetime.now())
+        self.centres = attribute_centres(self.centres, self.path_ids)
 
     # fit cylinders
+    if verbose: print('fitting cylinders..' )
     cylinder_fit(self)
     
     # smooth cylinders
     smooth_branches(self)
     
+    # generate cyls
+    generate_cylinders(self, radius=radius)
+    
+    # save data
+    qsm2json(self, os.path.splitext(path)[0] + '.json')
+    to_ply(self, os.path.splitext(path)[0] + '.cyls.ply')
+        
     return self
 
-    # generate cylinder df
-#     generate_cylinders(self, attribute='nbranch')
-
-#    # save to ply
-#    cols = ['length', 'radius', 'sx', 'sy', 'sz', 'ax', 'ay', 'az', 'nbranch']
-#    pandas2ply(self.cyls[cols], 
-#               'nbranch', 
-#               os.path.splitext()[0] + '.cyls.ply')
-
-    return self
 
 if __name__ == "__main__":
-
-    run()
+    
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--branch', '-b', type=str, required=True, help='path to branch')
+    parser.add_argument('--bidx', type=int, default=None, required=False, help='index of base point')
+    parser.add_argument('--attribute', '-a', default='nbranch', type=str, help='attribute')
+    parser.add_argument('--radius', '-r', default='sf_radius', type=str, help='radius attribute or float')
+    parser.add_argument('--splits', '-s', type=int, default=2, help='number of iterations for splitting furcations')
+    parser.add_argument('--verbose', action='store_true', help='print something')
+    args = parser.parse_args()
+    run(args.branch, 
+        base_idx=args.bidx,
+        attribute=args.attribute, 
+        radius=args.radius, 
+        split_furcations=args.splits, 
+        verbose=args.verbose)
