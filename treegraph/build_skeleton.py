@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 from sklearn.cluster import DBSCAN
+from tqdm import tqdm
 
 import pc2graph as p2g
 
@@ -31,7 +32,7 @@ def generate_distance_graph(self, downsample_cloud=False):
                                 knn=100, 
                                 nbrs_threshold=.2,
                                 nbrs_threshold_step=.1,
-                                graph_threshold=.05
+#                                 graph_threshold=.05
                                 )
 
     self.node_ids, self.distance, path_dict = p2g.extract_path_info(self.G, self.base_location)
@@ -79,7 +80,8 @@ def skeleton(self, eps=None):
 
     self.centres = pd.DataFrame(columns=['slice_id', 'centre_id', 'cx', 'cy', 'cz', 'centre_path_dist'])
 
-    for i, s in enumerate(np.sort(self.pc.slice_id.unique())):
+    print('identifying skeleton points...')
+    for i, s in tqdm(enumerate(np.sort(self.pc.slice_id.unique())), total=len(self.pc.slice_id.unique())):
 
         # separate different slice components e.g. different branches
         dslice = self.pc.loc[self.pc.slice_id == s][['x', 'y', 'z']]
