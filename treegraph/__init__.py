@@ -1,1 +1,2 @@
-from treegraph import common
+import warnings
+warnings.simplefilter(action='ignore', category=Warning)
