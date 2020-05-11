@@ -9,8 +9,7 @@ from treegraph.build_graph import *
 from treegraph.attribute_centres import *
 from treegraph.common import *
 
-
-def split_furcation(self, error=.01):
+def split_furcation(self, error=.01, max_dist=1):
     
     for ix, row in tqdm(self.centres[self.centres.n_furcation > 0].iterrows(), 
                         total=self.centres[self.centres.n_furcation > 0].shape[0]):
@@ -61,7 +60,7 @@ def split_furcation(self, error=.01):
             nodes_subset = list(branch_path) + child_nodes + new_nodes.index.to_list()
             nodes_subset.remove(row.node_id) # remove existing node as don't want to include in tmp 
             tmp_centres = self.centres.loc[self.centres.node_id.isin(nodes_subset)]  
-            path_distance, path_ids = skeleton_path(tmp_centres, max_dist=.1)
+            path_distance, path_ids = skeleton_path(tmp_centres, max_dist=max_dist)
             tmp_centres = attribute_centres(tmp_centres, path_ids)
 
             # which new node included in the parent
