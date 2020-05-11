@@ -2,11 +2,19 @@ import networkx as nx
 import pandas as pd
 import numpy as np
 
-def skeleton_path(centres, max_dist=.1):
+from tqdm import tqdm
+
+def skeleton_path(centres, max_dist=.1, show_progress=False):
 
     edges = pd.DataFrame(columns=['node1', 'node2', 'length'])
-
-    for i, row in enumerate(centres.itertuples()):
+    
+    if show_progress:
+        print('generating graph...')
+        iterator = tqdm(enumerate(centres.itertuples()), total=len(centres))
+    else:
+        iterator = enumerate(centres.itertuples())
+  
+    for i, row in iterator:
 
         # first node
         if row.centre_path_dist == centres.centre_path_dist.min(): continue
@@ -14,17 +22,19 @@ def skeleton_path(centres, max_dist=.1):
         n, nbrs, dist = 3, [], 999
         
         while len(nbrs) == 0 or dist > max_dist:
+            
             # between required incase of small gap in pc
             nbrs = centres.loc[centres.slice_id.between(row.slice_id - n,
                                                         row.slice_id - 1)].node_id
-            if len(nbrs):
+            if len(nbrs) > 0:
                 nbr_dist = np.linalg.norm(np.array([row.cx, row.cy, row.cz]) - 
                                           centres.loc[centres.node_id.isin(nbrs)][['cx', 'cy', 'cz']].values, 
                                           axis=1)
                 dist = nbr_dist.min()
+
             n += 2
             if n > 10: 
-                continue
+                break
 
         if dist > max_dist: continue
         nbr_id = nbrs[nbrs.index[np.argmin(nbr_dist)]]  
