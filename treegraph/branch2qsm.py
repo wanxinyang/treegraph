@@ -45,7 +45,7 @@ def run(path, base_idx=None, attribute='nbranch', radius='m_radius',
     # split furcations and reattribute
     for _ in range(split_furcations):
         if verbose: print('split_furcation:', datetime.datetime.now())
-        split_furcation(self)
+        split_furcation(self, max_dist=.1)
         if verbose: print('\tskeleton_path:', datetime.datetime.now())
         self.path_distance, self.path_ids = skeleton_path(self.centres, max_dist=.1)
         if verbose: print('\tattribute_centres:', datetime.datetime.now())
@@ -62,7 +62,7 @@ def run(path, base_idx=None, attribute='nbranch', radius='m_radius',
     generate_cylinders(self, radius=radius)
     
     # save data
-    qsm2json(self, os.path.splitext(path)[0] + '.json')
+    qsm2json(self, os.path.splitext(path)[0] + '.json', name=os.path.split(path)[1])
     to_ply(self, os.path.splitext(path)[0] + '.cyls.ply')
         
     return self
