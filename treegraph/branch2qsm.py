@@ -34,7 +34,7 @@ def run(path, base_idx=None, attribute='nbranch', radius='m_radius',
     if verbose: print('generate_graph:', datetime.datetime.now())
     generate_distance_graph(self, downsample_cloud=.01)
     if verbose: print('calculate_voxel_length:', datetime.datetime.now())    
-    calculate_voxel_length(self, exponent=1, maxbin=.02, minbin=.005)
+    calculate_voxel_length(self, exponent=1, maxbin=.03, minbin=.01)
     if verbose: print('skeleton:', datetime.datetime.now())
     skeleton(self, eps=.005)
     if verbose: print('skeleton_path:', datetime.datetime.now())
