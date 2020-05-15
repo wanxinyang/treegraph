@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 from sklearn.decomposition import PCA 
+from scipy import optimize
 
 try:
     from tqdm import tqdm
@@ -13,8 +14,11 @@ from treegraph.third_party import cylinder_fitting
 
 def cylinder_fit(self):
 
-    if 'sf_radius' in self.centres.columns:
-        del self.centres['sf_radius']
+#     if 'sf_radius' in self.centres.columns:
+#         del self.centres['sf_radius']
+
+    for c in self.centres.columns:
+        if 'sf' in c: del self.centres[c]
     
     node_id = self.centres[self.centres.n_points > self.min_pts].sort_values('n_points').node_id.values
 #     self.radius = self.pc.loc[self.pc.node_id.isin(node_id)].groupby('node_id').apply(cylinderFitting)
@@ -23,11 +27,9 @@ def cylinder_fit(self):
 #                             on='node_id', how='left')
     
     groupby_ = self.pc.loc[self.pc.node_id.isin(node_id)].groupby('node_id')
-#     if self.verbose:
     tqdm.pandas()
     cyl = groupby_.progress_apply(cylinderFitting)
-#     else: 
-#         cyl = groupby_.apply(cylinderFitting)
+#     cyl = groupby_.progress_apply(partial_circle)
         
     results = pd.DataFrame(data=[c for c in cyl], columns=['sf_radius', 'centre', 'sf_error'])
     results.loc[:, 'node_id'] = cyl.index
@@ -37,10 +39,10 @@ def cylinder_fit(self):
                             how='left')
     
     for i, c in enumerate(['cx', 'cy', 'cz']):
-        self.centres.\
+            self.centres.\
             set_index('node_id').\
             loc[cyl.index, c] = pd.Series(index=cyl.index, 
-                                             data=[row[i] for row in results.centre.values])
+                                          data=[row[i] for row in results.centre.values])
 
 
 def PCA_(xyz):
@@ -48,6 +50,82 @@ def PCA_(xyz):
     return pca, pca.transform(xyz)
 
 
+class R:
+    
+    def __init__(self, x, y):
+        
+        self.x = x
+        self.y = y
+        self.RADIUS()
+        
+    def calc_R(self, xc, yc):
+        """ calculate the distance of each 2D points from the center (xc, yc) """
+        return np.sqrt((self.x-xc)**2 + (self.y-yc)**2)
+
+    def f_2(self, c):
+        """ calculate the algebraic distance between the data 
+        points and the mean circle centered at c=(xc, yc) """
+        Ri = self.calc_R(*c)
+        return Ri - Ri.mean()
+    
+    def Df_2b(self, c):
+
+        """ Jacobian of f_2b. The axis corresponding to derivatives 
+        must be coherent with the col_deriv option of leastsq"""
+        
+        xc, yc     = c
+        df2b_dc    = np.empty((len(c), self.x.size))
+
+        Ri = self.calc_R(xc, yc)
+        df2b_dc[ 0] = (xc - self.x)/Ri                   # dR/dxc
+        df2b_dc[ 1] = (yc - self.y)/Ri                   # dR/dyc
+        df2b_dc       = df2b_dc - df2b_dc.mean(axis=1)[:, np.newaxis]
+        
+        return df2b_dc
+
+    def RADIUS(self):
+
+        center_estimate = 0, 0
+        center_2, ier = optimize.leastsq(self.f_2, 
+                                         center_estimate,
+                                         Dfun=self.Df_2b, 
+                                         col_deriv=True)
+
+        xc_2, yc_2 = center_2
+        Ri_2       = self.calc_R(*center_2)
+        R_2        = Ri_2.mean()
+        residu_2   = sum((Ri_2 - R_2)**2)
+
+        return R_2, xc_2, yc_2, residu_2
+
+def partial_circle(xyz):
+        
+    pca, xyz = PCA_(xyz[['x', 'y', 'z']].values)
+    results = pd.DataFrame(columns=['R_2', 'xc', 'yc', 'residu'])
+    
+    for i, y in enumerate([xyz[:, 1], xyz[:, 2]]):
+        r = R(xyz[:, 0], y)
+        results.loc[i, :] = r.RADIUS()
+
+#     if results.R_2.max() > 3:
+#         print(results)
+        
+#     if results.residu.loc[0] < results.residu.loc[1]: 
+        
+#         centre = np.array([-results.xc.loc[0], 
+#                            -results.yc.loc[0], 
+#                            xyz[:, 2].mean()])
+#         centre_inv = pca.inverse_transform(centre)
+#         return results.R_2.loc[0], centre_inv, results.residu.loc[0] 
+    
+#     else:        
+    centre = np.array([-results.xc.loc[1], 
+                       xyz[:, 1].mean(),
+                       -results.yc.loc[1]])
+    centre_inv = pca.inverse_transform(centre)
+    return results.R_2.loc[1], centre_inv, results.residu.loc[1]  
+    
+                    
 def cylinderFitting(xyz, sample=100):
     
     """
