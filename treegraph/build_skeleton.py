@@ -3,8 +3,7 @@ import numpy as np
 from sklearn.cluster import DBSCAN
 from tqdm import tqdm
 
-import pc2graph as p2g
-
+from treegraph.third_party import shortpath as p2g
 from treegraph.downsample import *
 
 def dbscan_(voxel, eps):
