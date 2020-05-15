@@ -5,7 +5,6 @@ import datetime
 
 from treegraph.third_party.cyl2ply import pandas2ply
 from treegraph.common import *
-from treegraph.third_party.ply_io import *
 
 
 def save_centres(self, path):
@@ -80,6 +79,7 @@ def qsm2json(self, path, name=None):
                                                      self.centres[self.centres.node_id == row.node_id][['cx', 'cy', 'cz']].values,
                                                      self.centres[self.centres.node_id == row.next_node][['cx', 'cy', 'cz']].values)[0][0]
 
+
         nodes.loc[ix, 'surface_area_b'] = self.cyls[self.cyls.p1.isin(branch_path[idx:])].surface_area.sum()
         nodes.loc[ix, 'length_b'] = self.cyls[self.cyls.p1.isin(branch_path[idx:])].length.sum()
         nodes.loc[ix, 'volums_b'] = self.cyls[self.cyls.p1.isin(branch_path[idx:])].vol.sum()
@@ -93,3 +93,6 @@ def qsm2json(self, path, name=None):
             'cyls':self.cyls.to_json()}
 
     with open(path, 'w') as fh: fh.write(json.dumps(JSON))
+        
+# def pretty_printing():
+    
