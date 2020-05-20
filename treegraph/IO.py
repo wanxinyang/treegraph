@@ -6,7 +6,6 @@ import datetime
 from treegraph.third_party.cyl2ply import pandas2ply
 from treegraph.common import *
 
-
 def save_centres(self, path):
     
     ply_io.write_ply(path, self.centres.rename(columns={'cx':'x', 'cy':'y', 'cz':'z'}))
@@ -38,7 +37,7 @@ def qsm2json(self, path, name=None):
     self.cyls.loc[:, 'surface_area'] = 2 * np.pi * self.cyls.radius * self.cyls.length + 2 * np.pi * self.cyls.radius**2
 
     internodes = pd.DataFrame(data=self.cyls.groupby('ninternode').length.sum(),
-                              columns=['length', 'volume', 'ncyl', 'mean_radius', 
+                              columns=['length', 'volume', 'ncyl', 'mean_radius', 'is_tip',
                                        'distal_radius', 'proximal_radius', 'surface_area'])
 
     internodes.loc[:, 'ncyl'] = self.cyls.groupby('ninternode').vol.count()
@@ -46,15 +45,19 @@ def qsm2json(self, path, name=None):
     internodes.loc[:, 'surface_area'] = self.cyls.groupby('ninternode').surface_area.sum()
     internodes.loc[:, 'mean_radius'] = self.cyls.groupby('ninternode').radius.mean()
 
+    self.cyls.loc[:, 'is_tipI'] = self.cyls.is_tip.astype(int)
+    internodes.loc[:, 'is_tip'] = self.cyls.groupby('ninternode').is_tipI.max().astype(bool)
+    
+
     first_and_last = self.cyls.groupby('ninternode').ncyl.agg([min, max]).reset_index().rename(columns={'min':'First', 'max':'Last'})
 
-    # distal radius
+    # distal radius (ends)
     distal_radius_f = lambda row: self.cyls.loc[(self.cyls.ninternode == row.ninternode) & 
                                                 (self.cyls.ncyl.isin([row.First, row.Last]))].radius.mean()
     internodes.loc[:, 'distal_radius'] = first_and_last.apply(distal_radius_f, axis=1)
 
 
-    # proximal radius                                                                                                      
+    # proximal radius (centre)
     centre_cyl = first_and_last[['First', 'Last']].mean(axis=1).astype(int).reset_index().rename(columns={'index':'ninternode', 0:'ncyl'})
     proximal_radius_f = lambda row: self.cyls.loc[(self.cyls.ninternode == row.ninternode) & 
                                                   (self.cyls.ncyl == row.ncyl)].radius.mean()
@@ -90,7 +93,8 @@ def qsm2json(self, path, name=None):
             'tree':pd.DataFrame(data=whole_branch, index=[0]).to_json(),
             'internode':internodes.to_json(),
             'node':nodes.to_json(),
-            'cyls':self.cyls.to_json()}
+            'cyls':self.cyls.to_json(),
+            'centres':self.centres.to_json()}
 
     with open(path, 'w') as fh: fh.write(json.dumps(JSON))
         
