@@ -15,7 +15,7 @@ from treegraph.connected_cylinders import *
 
 
 def run(path, base_idx=None, attribute='nbranch', radius='m_radius', 
-        split_furcations=2, verbose=False):
+        split_furcations=1, verbose=False):
 
     # read in pc
     pc = ply_io.read_ply(path)
