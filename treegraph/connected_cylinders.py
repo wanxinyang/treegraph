@@ -42,7 +42,7 @@ def direction_vector(p1, p2):
     return (p2 - p1) / np.linalg.norm(p2 - p1)
 
 
-def generate_cylinders(self, radius='sf_radius'):
+def generate_cylinders(self, radius_value='sf_radius'):
     
     self.cyls = pd.DataFrame(columns=['p1', 'p2', 
                                       'sx', 'sy', 'sz', 
@@ -70,48 +70,66 @@ def generate_cylinders(self, radius='sf_radius'):
 
                 correction = 1
                 length = np.linalg.norm(c1 - c2)  
+                L = length
                 
                 if row.ncyl == 0: # i.e. a furcation
                 
                     # parent branch radius
                     parent_node = self.centres[self.centres.node_id == row.parent_node]
-                    parent_radius = parent_node[radius].values[0]
-                    parent_branch = parent_node.nbranch.values[0]  
+                    parent_radius = parent_node[radius_value if isinstance(radius_value, str) else 'sf_radius'].values[0]
+                    if not np.isnan(parent_radius):  # something weird is happening so skip if NaN
+                        parent_branch = parent_node.nbranch.values[0]  
 
-                    # branch angle
-                    tip_id = self.centres.loc[(self.centres.nbranch == parent_branch) & 
-                                              (self.centres.is_tip)].node_id.values[0]
-                    branch_path = np.array(self.path_ids[int(tip_id)], dtype=int)
-                    idx = np.where(branch_path == row.parent_node)[0][0]
-                    next_node = branch_path[idx + 1]
+                        # branch angle
+                        tip_id = self.centres.loc[(self.centres.nbranch == parent_branch) & 
+                                                  (self.centres.is_tip)].node_id.values[0]
+                        branch_path = np.array(self.path_ids[int(tip_id)], dtype=int)
+                        idx = np.where(branch_path == row.parent_node)[0][0]
+                        next_node = branch_path[idx - 1]
 
-                    A = node_angle_f(row[['cx', 'cy', 'cz']].values.astype(float),
-                                     parent_node[['cx', 'cy', 'cz']].values,
-                                     self.centres[self.centres.node_id == next_node][['cx', 'cy', 'cz']].values)
-                    
-                    distance_to_edge =  (parent_radius / np.sin(A))[0][0]
-                    correction = 1 - (distance_to_edge / length)
+                        A = node_angle_f(row[['cx', 'cy', 'cz']].values.astype(float),
+                                         parent_node[['cx', 'cy', 'cz']].values,
+                                         self.centres[self.centres.node_id == next_node][['cx', 'cy', 'cz']].values)
 
-                    # calculate new start point of cylinder based upon radius of parent
-                    row[['cx', 'cy', 'cz']] = end_of_branch(correction, c1, c2).values
+                        distance_to_edge =  (parent_radius / np.sin(A))[0][0]
+                        correction = 1 - (distance_to_edge / length)
+                        if np.isnan(correction): print(parent_radius, distance_to_edge, length)
+                        # calculate new start point of cylinder based upon radius of parent
+                        row[['cx', 'cy', 'cz']] = end_of_branch(correction, c1, c2).values
                   
                 length *= correction
+                
+                if np.isnan(length):
+                    print(c1, c2, k1, k2, correction)
+                
+                if length < 0: continue
 #                 if length > 1: continue # remove overly long branches
 
-                if isinstance(radius, str):
-                    # mask furcation node as this leads to overestimation
+                if isinstance(radius_value, str):
+        
+                    radius = self.centres.loc[self.centres.node_id.isin([k1, k2])][radius_value]
+
+                    # mask NaN radius
+                    is_null = np.isnan(radius)
                     is_furcation = self.centres.loc[self.centres.node_id.isin([k1, k2])].n_furcation == 0
-                    if np.all(is_furcation) or np.all(is_furcation == False):
-                        rad = self.centres.loc[self.centres.node_id.isin([k1, k2])][radius].mean()
+
+                    if np.all(is_null):
+                        continue
+                    if np.all(~is_null) and np.any(is_furcation):
+                        # mask furcation node as this leads to overestimation
+                        rad = radius.loc[is_furcation].mean()
                     else:
-                        rad = self.centres.loc[self.centres.node_id.isin([k1, k2])].loc[is_furcation][radius].mean()
-                elif isinstance(radius, int) or isinstance(radius, float):
+                        rad = radius.loc[~is_null].mean()
+                        
+                elif isinstance(radius_value, int) or isinstance(radius, float):
                     rad = radius
                 else:
                     rad = .05
 
                 volume = np.pi * (rad ** 2) * length
                 surface_area = 2 * np.pi * rad * length + 2 * np.pi * rad**2
+                
+                if np.isnan(rad): print(k1, k2)
 
                 direction = direction_vector(c1, c2)
                 
