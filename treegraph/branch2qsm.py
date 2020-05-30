@@ -62,8 +62,8 @@ def run(path, base_idx=None, attribute='nbranch', radius='m_radius',
     generate_cylinders(self, radius=radius)
     
     # save data
-    qsm2json(self, os.path.splitext(path)[0] + '.json', name=os.path.split(path)[1])
-    to_ply(self, os.path.splitext(path)[0] + '.cyls.ply')
+    qsm2json(self, os.path.splitext(os.path.split(path)[1])[0] + '.json', name=os.path.split(path)[1])
+    to_ply(self, os.path.splitext(os.path.split(path)[1])[0] + '.cyls.ply')
         
     return self
 
