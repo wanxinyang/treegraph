@@ -3,11 +3,7 @@ import pandas as pd
 from sklearn.decomposition import PCA 
 from scipy import optimize
 
-try:
-    from tqdm import tqdm
-except:
-    print('no tdqm installed')
-    self.verbose = False
+from tqdm.autonotebook import tqdm
 
 from treegraph.third_party import cylinder_fitting
 
@@ -27,7 +23,7 @@ def cylinder_fit(self):
 #                             on='node_id', how='left')
     
     groupby_ = self.pc.loc[self.pc.node_id.isin(node_id)].groupby('node_id')
-    tqdm.pandas()
+    tqdm.pandas(disable=False if self.verbose else True)
     cyl = groupby_.progress_apply(cylinderFitting)
 #     cyl = groupby_.progress_apply(partial_circle)
         
