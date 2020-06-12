@@ -15,41 +15,54 @@ from treegraph.connected_cylinders import *
 
 
 def run(path, base_idx=None, attribute='nbranch', radius='m_radius', 
-        split_furcations=2, verbose=False):
+        split_furcations=1, verbose=False):
 
     # read in pc
     pc = ply_io.read_ply(path)
     pc.rename(columns={x:x.replace('scalar_', '') for x in pc.columns}, inplace=True)
 
     if verbose: print('begin:', datetime.datetime.now())
-    self = treegraph(pc, slice_interval=.2, min_pts=10, base_location=base_idx)
+    self = treegraph(pc, slice_interval=.2, min_pts=10, base_location=base_idx, verbose=verbose)
 
     # downsample branches before running treegraph
-    downsample(self, vlength=.0009, remove_noise=False)
+    self.pc, self.base_idx = downsample(self.pc, 
+                                        self.pc.z.idxmin() if base_idx == None else base_idx, 
+                                        .001, remove_noise=False)
     self.pc = self.pc[self.pc.downsample]
     del self.pc['downsample']
     self.pc.reset_index(inplace=True)
 
     # run treegraph
+    self.pc = generate_distance_graph(self.pc, self.base_idx, downsample_cloud=.005)
     if verbose: print('generate_graph:', datetime.datetime.now())
-    generate_distance_graph(self, downsample_cloud=.01)
-    if verbose: print('calculate_voxel_length:', datetime.datetime.now())    
     calculate_voxel_length(self, exponent=1, maxbin=.03, minbin=.01)
-    if verbose: print('skeleton:', datetime.datetime.now())
+    if verbose: print('calculate_voxel_length:', datetime.datetime.now())
     skeleton(self, eps=.005)
+    if verbose: print('skeleton:', datetime.datetime.now())
+    self.path_distance, self.path_ids = skeleton_path(self.centres, max_dist=.1, verbose=self.verbose)
     if verbose: print('skeleton_path:', datetime.datetime.now())
-    self.path_distance, self.path_ids = skeleton_path(self.centres, max_dist=.1)
+    self.centres, self.branch_hierarchy = attribute_centres(self.centres, self.path_ids, 
+                                                            branch_hierarchy=True)
     if verbose: print('attribute_centres:', datetime.datetime.now())
-    self.centres = attribute_centres(self.centres, self.path_ids)
+    
+    # recalculate slice_id based on distance from tip and rebuild graph
+    self.centres, self.pc = distance_from_tip(self, self.centres, self.pc)
+    if verbose: print('skeleton:', datetime.datetime.now())
+    self.path_distance, self.path_ids = skeleton_path(self.centres, max_dist=.1, verbose=self.verbose)
+    if verbose: print('skeleton_path:', datetime.datetime.now())
+    self.centres, self.branch_hierarchy = attribute_centres(self.centres, self.path_ids, 
+                                                            branch_hierarchy=True)
+    if verbose: print('attribute_centres:', datetime.datetime.now()) 
 
     # split furcations and reattribute
     for _ in range(split_furcations):
         if verbose: print('split_furcation:', datetime.datetime.now())
         split_furcation(self, max_dist=.1)
         if verbose: print('\tskeleton_path:', datetime.datetime.now())
-        self.path_distance, self.path_ids = skeleton_path(self.centres, max_dist=.1)
+        self.path_distance, self.path_ids = skeleton_path(self.centres, max_dist=.1, verbose=self.verbose)
         if verbose: print('\tattribute_centres:', datetime.datetime.now())
-        self.centres = attribute_centres(self.centres, self.path_ids)
+        self.centres, self.branch_hierarchy = attribute_centres(self.centres, self.path_ids, 
+                                                                branch_hierarchy=True)
 
     # fit cylinders
     if verbose: print('fitting cylinders..' )
@@ -59,11 +72,11 @@ def run(path, base_idx=None, attribute='nbranch', radius='m_radius',
     smooth_branches(self)
     
     # generate cyls
-    generate_cylinders(self, radius=radius)
+    generate_cylinders(self, radius_value=radius)
     
     # save data
-    qsm2json(self, os.path.splitext(os.path.split(path)[1])[0] + '.json', name=os.path.split(path)[1])
-    to_ply(self, os.path.splitext(os.path.split(path)[1])[0] + '.cyls.ply')
+    qsm2json(self, os.path.splitext(path)[0] + '.json', name=os.path.split(path)[1])
+    to_ply(self, os.path.splitext(path)[0] + '.cyls.ply')
         
     return self
 
@@ -75,7 +88,7 @@ if __name__ == "__main__":
     parser.add_argument('--bidx', type=int, default=None, required=False, help='index of base point')
     parser.add_argument('--attribute', '-a', default='nbranch', type=str, help='attribute')
     parser.add_argument('--radius', '-r', default='sf_radius', type=str, help='radius attribute or float')
-    parser.add_argument('--splits', '-s', type=int, default=2, help='number of iterations for splitting furcations')
+    parser.add_argument('--splits', '-s', type=int, default=1, help='number of iterations for splitting furcations')
     parser.add_argument('--verbose', action='store_true', help='print something')
     args = parser.parse_args()
     run(args.branch, 
