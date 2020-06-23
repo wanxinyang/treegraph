@@ -22,9 +22,9 @@ def split_furcation(self, error=.01, max_dist=1):
     used in skeleton path
     """
     
-    for ix, row in tqdm(self.centres[self.centres.n_furcation > 0].iterrows(), 
+    for ix, row in tqdm(self.centres[self.centres.n_furcation > 0].sort_values('slice_id', ascending=False).iterrows(), 
                         total=self.centres[self.centres.n_furcation > 0].shape[0],
-                        disable=~self.verbose):
+                        disable=False if self.verbose else True):
 
         # if furcates at the base then ignore
         if row.distance_from_base == self.centres.distance_from_base.min(): continue
@@ -71,7 +71,7 @@ def split_furcation(self, error=.01, max_dist=1):
                                                   'distance_from_base':nvoxel.distance_from_base.mean(),
                                                   'n_points':len(nvoxel),
                                                   'node_id':node_id}, ignore_index=True)
-                points_index[node_id] = nvoxel.index
+                points_index[node_id] = list(nvoxel.index)
                 node_id += 1
                 
             ### test if new furcation generates cylinders that are within one another
@@ -80,23 +80,22 @@ def split_furcation(self, error=.01, max_dist=1):
             tmp_centres = attribute_centres(tmp_centres, path_ids)
             
             # identify and add new node in parent branch
+            keep_node_in_path = True
             node_in_parent = tmp_centres.loc[(tmp_centres.node_id.isin(points_index.keys())) & 
                                              (tmp_centres.nbranch == tmp_centres.nbranch.min())] # min nbranch being the parent
-            self.centres = self.centres.append(tmp_centres.loc[tmp_centres.node_id.isin(node_in_parent.node_id)],
-                                               ignore_index=True)
-            self.pc.loc[self.pc.index.isin(points_index[node_in_parent.node_id.values[0]]), 'node_id'] = node_in_parent
-                        
+            if len(node_in_parent) == 0:
+                # if none of the nodes occur in the parent... might be e GOTCHA and needs checking    
+                node_in_parent = tmp_centres.loc[(tmp_centres.node_id.isin([list(points_index.keys())[0]]))]
             
             # node_in_parent_radius,  _, _ = cylinderFitting(c.loc[c.klabels.isin(new_nodes.label.loc[new_nodes.parent])])
             node_in_parent_radius,  _, _ = cylinderFitting(c) # worse case i.e. points are wrongly attributed to >1 cluster
 
             for child_node_id in points_index.keys():
-                if child_node_id in node_in_parent.node_id.values: continue
-                self.centres = self.centres.append(tmp_centres.loc[tmp_centres.node_id == child_node_id], 
-                                                   ignore_index=True)
-                self.pc.loc[self.pc.index.isin(points_index[child_node_id]), 'node_id'] = child_node_id
                 
-                # testing whether the child is also mostly in the parent
+                # don't process the node in parent
+                if child_node_id in node_in_parent.node_id.values: continue
+
+                # test whether the child is mostly in the parent
                 child = tmp_centres.loc[tmp_centres.node_id == child_node_id]
                 A = node_angle_f(node_in_parent[['cx', 'cy', 'cz']].values,
                                  base_coords,
@@ -106,23 +105,36 @@ def split_furcation(self, error=.01, max_dist=1):
                 dist_between_nodes = np.linalg.norm(base_coords - 
                                                     child[['cx', 'cy', 'cz']].values)
 
-                if distance_to_edge / dist_between_nodes > .8: # comparing lengths
+                if distance_to_edge / dist_between_nodes > .8 and keep_node_in_path: # comparing lengths
                     # cylinder overlap is too great, delete new node in parent 
-                    # and corrently attribute point cloud with node_id. This tends
+                    # and correctly attribute point cloud with node_id. This tends
                     # to happen where there is already a good fit
-                    self.centres = self.centres.loc[self.centres.node_id != node_in_parent.node_id.values[0]]
-                    self.pc.loc[self.pc.node_id == node_in_parent.node_id.values[0], 'node_id'] = child.node_id.values[0]
-                    
-#                     for child_node_id in points_index.keys():
-#                         if child_node_id in node_in_parent.node_id.values: continue
-#                         nbranch = tmp_centres.loc[tmp_centres.node_id == child_node_id].nbranch.values
-#                         self.centres.loc[self.centres.nbranch.isin(nbranch), 'slice_id'] += 1
-                    
-                    break
-
+                    keep_node_in_path = False
+                    points_index[child_node_id] += points_index[node_in_parent.node_id.values[0]]
+                     
+                self.centres = self.centres.append(tmp_centres.loc[tmp_centres.node_id == child_node_id], 
+                                                   ignore_index=True)
+                self.pc.loc[self.pc.index.isin(points_index[child_node_id]), 'node_id'] = child_node_id
+            
+            if keep_node_in_path:
+                # new node in parent is valid and should be kept
+                self.centres = self.centres.append(node_in_parent, ignore_index=True)
+                self.pc.loc[self.pc.index.isin(points_index[node_in_parent.node_id.values[0]]), 'node_id'] = node_in_parent
+                # replace
+                for k, v in path_ids.items():
+                    if k in self.path_ids.keys():
+                        self.path_ids[k] = v
+                    else: self.path_ids[k] = v       
+            else:
+                tmp_centres = tmp_centres.loc[tmp_centres.node_id != node_in_parent.node_id.values[0]]
+                path_distance, path_ids = skeleton_path(tmp_centres, max_dist=max_dist, verbose=False)
+                for k, v in path_ids.items():
+                    if k in self.path_ids.keys():
+                        self.path_ids[k] = v
+                    else: self.path_ids[k] = v
+            
             self.centres = self.centres.loc[self.centres.node_id != row.node_id]
-#             self.centres.reset_index(inplace=True)
-
+            
         # if splitting the base node occured - put back together
         if len(self.centres[(self.centres.slice_id == 0) & (self.centres.slice_id == 0)]) > 1:
 
