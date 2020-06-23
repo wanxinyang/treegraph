@@ -75,12 +75,6 @@ def calculate_voxel_length(self, exponent=2, minbin=.005, maxbin=.02):
 
     # generate unique id "slice_id" for bins
     self.pc.loc[:, 'slice_id'] = np.digitize(self.pc.distance_from_base, self.f.cumsum())
-    # colour randomly for vis
-    random_c = {sid:i for sid, i in zip(self.pc.slice_id.unique(), 
-                                        np.random.choice(self.pc.slice_id.unique(),
-                                                         size=len(self.pc.slice_id.unique()),
-                                                         replace=False))}
-    self.pc.loc[:, 'random_c'] = self.pc.slice_id.map(random_c)
     
     
 def skeleton(self, eps=None):
