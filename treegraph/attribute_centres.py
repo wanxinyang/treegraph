@@ -17,7 +17,7 @@ def attribute_centres(centres, path_ids, verbose=False, branch_hierarchy=False):
     
     # calculate branch lengths and numbers
     tip_paths = pd.DataFrame(index=centres[centres.is_tip].node_id.values, 
-                                  columns=['tip2base', 'length', 'nbranch'])
+                             columns=['tip2base', 'length', 'nbranch'])
     
     for k, v in path_ids.items():
         
@@ -29,7 +29,7 @@ def attribute_centres(centres, path_ids, verbose=False, branch_hierarchy=False):
             
     if verbose: print('\tbranch lengths:', time.time() - T)
             
-    centres.sort_values('distance_from_base', inplace=True)
+    centres.sort_values('slice_id', inplace=True)
     centres.loc[:, 'nbranch'] = -1
     centres.loc[:, 'ncyl'] = -1
 
@@ -61,12 +61,8 @@ def attribute_centres(centres, path_ids, verbose=False, branch_hierarchy=False):
         
         if nbranch == 0: continue # main branch does not furcate
         furcation_node = -1
-        try:
-            branch_base_idx = centres.loc[centres.nbranch == nbranch].ncyl.idxmin()
-            branch_base_idx = centres.loc[branch_base_idx].node_id
-        except Exception as err:
-            print(nbranch)
-            raise
+        branch_base_idx = centres.loc[centres.nbranch == nbranch].ncyl.idxmin()
+        branch_base_idx = centres.loc[branch_base_idx].node_id
         
         for path in path_ids.values():    
             if path[-1] == branch_base_idx:
@@ -118,7 +114,7 @@ def attribute_centres(centres, path_ids, verbose=False, branch_hierarchy=False):
     else:   
         return centres
     
-def distance_from_tip(self, centres, pc):
+def distance_from_tip(self, centres, pc, vlength=.005):
 
     pc.loc[:, 'modified_distance'] = pc.distance_from_base
     PC_nodes = pd.DataFrame(columns=['new_parent'])
@@ -146,7 +142,7 @@ def distance_from_tip(self, centres, pc):
             dfb_min = branch_pc['distance_from_base'].min()
             branch_pc = generate_distance_graph(branch_pc, 
                                                 base_location=branch_pc.distance_from_base.idxmin(),
-                                                downsample_cloud=False if len(branch_pc) <= 100 else .005,
+                                                downsample_cloud=False if len(branch_pc) <= 100 else vlength,
                                                 knn=50)
             branch_pc.distance_from_base += dfb_min
             
