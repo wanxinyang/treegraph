@@ -48,7 +48,7 @@ def generate_cylinders(self, radius_value='sf_radius'):
                                       'sx', 'sy', 'sz', 
                                       'ax', 'ay', 'az', 
                                       'radius', 'length', 'vol', 'surface_area', 'point_density', 
-                                      'nbranch', 'ninternode', 'ncyl', 'is_tip'])
+                                      'nbranch', 'ninternode', 'ncyl', 'is_tip', 'branch_order'])
 
     for ix, row in self.centres.sort_values(['nbranch', 'ncyl']).iterrows():
         
@@ -139,12 +139,14 @@ def generate_cylinders(self, radius_value='sf_radius'):
                 
                 point_density = ((row.n_points + self.centres.loc[self.centres.node_id == k2].n_points.values) / 2) / volume 
                 row = row.append(pd.Series(index=['point_density'], data=point_density))
+                
+                branch_order = len(self.branch_hierarchy[row.nbranch]['all'])
 
                 self.cyls.loc[ix] = [k1, k2, 
                                      c1[0], c1[1], c1[2], 
                                      direction[0], direction[1], direction[2], 
                                      rad, length, volume, surface_area, row.point_density, 
-                                     row.nbranch, row.ninternode, row.ncyl, row.is_tip] 
+                                     row.nbranch, row.ninternode, row.ncyl, row.is_tip, branch_order] 
 
                 
 def smooth_branches(self):
