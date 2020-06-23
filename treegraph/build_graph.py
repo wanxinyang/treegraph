@@ -4,7 +4,7 @@ import numpy as np
 
 from tqdm.autonotebook import tqdm
 
-def skeleton_path(centres, max_dist=.1, verbose=True):
+def skeleton_path(centres, max_dist=.1, verbose=False):
     
     """
     parameters
