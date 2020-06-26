@@ -219,7 +219,8 @@ def pandas2ply(cyls, field, out):
             y += startp[1]
             z += startp[2]
             ps[i] = [x,y,z, cyl[field]]
-
+            #if np.any(np.isnan([x, y, z])): print(cyl)
+	
         tempvertices += ps
         for row in faces:
             tempfaces += [[row[0]]+[row[i]+add for i in [1,2,3]]]
@@ -237,6 +238,8 @@ def pandas2ply(cyls, field, out):
             theFile.write(str(p[0])+' '+str(p[1])+' '+str(p[2])+' '+str(p[3])+'\n')
         for f in tempfaces:
             #print f
+
+
             theFile.write(str(f[0])+' '+str(f[1])+' '+str(f[2])+' '+str(f[3])+'\n')
 
 if __name__ == '__main__':
