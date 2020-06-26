@@ -107,7 +107,10 @@ def attribute_centres(centres, path_ids, verbose=False, branch_hierarchy=False):
             for k, v in branch_hierarchy.items():
                 if b not in list(v['all']): continue
                 ba.update(set(v['all'][v['all'] > b]))
-            if len(ba) > 0: branch_hierarchy[b]['above'] = list(ba)
+            if len(ba) > 0: 
+                branch_hierarchy[b]['above'] = list(ba)
+            else:
+                branch_hierarchy[b]['above'] = []
 
         return centres, branch_hierarchy
     
