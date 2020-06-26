@@ -48,7 +48,7 @@ def generate_cylinders(self, radius_value='sf_radius'):
                                       'sx', 'sy', 'sz', 
                                       'ax', 'ay', 'az', 
                                       'radius', 'length', 'vol', 'surface_area', 'point_density', 
-                                      'nbranch', 'ninternode', 'ncyl', 'is_tip'])
+                                      'nbranch', 'ninternode', 'ncyl', 'is_tip', 'branch_order'])
 
     for ix, row in self.centres.sort_values(['nbranch', 'ncyl']).iterrows():
         
@@ -71,13 +71,17 @@ def generate_cylinders(self, radius_value='sf_radius'):
                 correction = 1
                 length = np.linalg.norm(c1 - c2)  
                 L = length
-                
+###             NEEDS FIXING!!!               
                 if row.ncyl == 0: # i.e. a furcation
                 
                     # parent branch radius
                     parent_node = self.centres[self.centres.node_id == row.parent_node]
-                    parent_radius = parent_node[radius_value if isinstance(radius_value, str) else 'sf_radius'].values[0]
+                    if isinstance(radius_value, int) or isinstance(radius_value, float):
+                        parent_radius = radius_value
+                    else:
+                        parent_radius = parent_node[radius_value].values[0]
                     if not np.isnan(parent_radius):  # something weird is happening so skip if NaN
+                        
                         parent_branch = parent_node.nbranch.values[0]  
 
                         # branch angle
@@ -121,8 +125,8 @@ def generate_cylinders(self, radius_value='sf_radius'):
                     else:
                         rad = radius.loc[~is_null].mean()
                         
-                elif isinstance(radius_value, int) or isinstance(radius, float):
-                    rad = radius
+                elif isinstance(radius_value, int) or isinstance(radius_value, float):
+                    rad = radius_value
                 else:
                     rad = .05
 
@@ -135,12 +139,14 @@ def generate_cylinders(self, radius_value='sf_radius'):
                 
                 point_density = ((row.n_points + self.centres.loc[self.centres.node_id == k2].n_points.values) / 2) / volume 
                 row = row.append(pd.Series(index=['point_density'], data=point_density))
+                
+                branch_order = len(self.branch_hierarchy[row.nbranch]['all'])
 
                 self.cyls.loc[ix] = [k1, k2, 
                                      c1[0], c1[1], c1[2], 
                                      direction[0], direction[1], direction[2], 
                                      rad, length, volume, surface_area, row.point_density, 
-                                     row.nbranch, row.ninternode, row.ncyl, row.is_tip] 
+                                     row.nbranch, row.ninternode, row.ncyl, row.is_tip, branch_order] 
 
                 
 def smooth_branches(self):
