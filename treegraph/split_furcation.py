@@ -9,6 +9,115 @@ from treegraph.build_graph import *
 from treegraph.attribute_centres import *
 from treegraph.common import *
 
+from treegraph.third_party.point2line import *
+from treegraph.third_party.closestDistanceBetweenLines import *
+
+
+def split_furcation_new(self):  
+    
+    """
+    split fucation determines the correct location for the node.
+    This is done by firstly identfying the node which is closest
+    to the "child" portion of the point cloud. Then using the
+    point cloud and the first child node, the intersection between
+    the parent and child is determined
+    """
+
+    for ix, row in tqdm(self.centres[self.centres.n_furcation > 0].sort_values('slice_id', ascending=False).iterrows(), 
+                        total=self.centres[self.centres.n_furcation > 0].shape[0],
+                        disable=False if self.verbose else True):
+
+        # if furcates at the base then ignore
+        if row.distance_from_base == self.centres.distance_from_base.min(): continue
+
+        # the clusters of points that represent the furcation
+        cluster = self.pc[(self.pc.node_id == row.node_id)].copy()
+
+        # nodes which are in parent branch (identified from the tip)
+        tip_id = self.centres.loc[(self.centres.nbranch == row.nbranch) & 
+                                  (self.centres.is_tip)].node_id.values[0]
+        branch_path = np.array(self.path_ids[int(tip_id)], dtype=int)
+        node_idx = np.where(branch_path == row.node_id)[0][0]
+
+        # nodes either side of furcation
+        previous_node = [branch_path[node_idx - 1]]
+        subsequent_node = [branch_path[node_idx + 1]]
+
+        # child nodes
+        child_nodes = self.centres[(self.centres.parent_node == row.node_id) &
+                                   (self.centres.ncyl == 0)].node_id.to_list()
+
+        # label points in cluster
+        all_nodes = previous_node + subsequent_node + child_nodes
+        all_nodes = self.centres.loc[self.centres.node_id.isin(all_nodes)]
+        distances = np.zeros((len(all_nodes), len(cluster)))
+
+        for i, (_, node) in enumerate(all_nodes.iterrows()):
+            distances[i, :] = np.linalg.norm(node[['cx', 'cy', 'cz']].values - cluster[['x', 'y', 'z']], 
+                                             axis=1)
+
+        labels = distances.T.argmin(axis=1)
+        new_positions = pd.DataFrame(columns=['node_id', 'cx', 'cy', 'cz'])
+
+        for child in child_nodes:
+
+            # separaate points
+            label = np.where(all_nodes == child)[0]
+            child_cluster = cluster.loc[cluster.index[np.where(labels == label)[0]]][['x', 'y', 'z']]
+            child_centre = child_cluster.mean()
+
+            mean_distance = np.zeros(3)
+
+            ### distance from points to line
+            # child node
+            p = self.centres.loc[self.centres.node_id == child][['cx', 'cy', 'cz']].values[0]
+
+            # for all nodes on parent
+            for i, n in enumerate([subsequent_node[0], row.node_id, previous_node[0]]):
+                q = self.centres.loc[self.centres.node_id == n][['cx', 'cy', 'cz']].values[0]
+                mean_distance[i] = d(p, q, child_cluster).mean()
+
+            if not np.all(mean_distance): continue
+
+            if np.argmin(mean_distance) == 0: # closer to subsequent node
+                A = self.centres.loc[self.centres.node_id == subsequent_node[0]][['cx', 'cy', 'cz']].values[0]
+                B = self.centres.loc[self.centres.node_id == row.node_id][['cx', 'cy', 'cz']].values[0]
+                update_slice_id(self, child, -1)
+                nnode = subsequent_node[0]
+
+            elif np.argmin(mean_distance) == 1: # closer to centre node
+
+                A = self.centres.loc[self.centres.node_id == subsequent_node[0]][['cx', 'cy', 'cz']].values[0]
+                B = self.centres.loc[self.centres.node_id == previous_node[0]][['cx', 'cy', 'cz']].values[0]
+                nnode = row.node_id       
+
+            else: # closer to previous node
+
+                A = self.centres.loc[self.centres.node_id == row.node_id][['cx', 'cy', 'cz']].values[0]
+                B = self.centres.loc[self.centres.node_id == previous_node[0]][['cx', 'cy', 'cz']].values[0]
+                update_slice_id(self, child, -1)
+                nnode = previous_node[0]
+
+            # estimate the intersection (or narrowest point) between 2 lines
+            # A0 and A1 are "clamped" so the intersection point is A0 -> A1
+            pA, pB, D = closestDistanceBetweenLines(A, B,
+                                                    child_centre, 
+                                                    self.centres.loc[self.centres.node_id == child][['cx', 'cy', 'cz']].values[0],
+                                                    clampA0=True, clampA1=True)
+
+            # add new position to temporary database
+            # this is needed if more than one branch joins 
+            # to the same node
+            new_positions = new_positions.append(pd.Series({'node_id':nnode, 'cx':pA[0], 'cy':pA[1], 'cz':pA[2]}), 
+                                                 ignore_index=True)
+
+        if len(new_positions) == 0 or np.all(np.isnan(new_positions[['cx', 'cy', 'cz']])): continue
+        for roww in new_positions.groupby('node_id').mean().itertuples():
+            self.centres.loc[self.centres.node_id == roww.Index, 'cx'] = roww.cx 
+            self.centres.loc[self.centres.node_id == roww.Index, 'cy'] = roww.cy 
+            self.centres.loc[self.centres.node_id == roww.Index, 'cz'] = roww.cz 
+
+
 def split_furcation(self, error=.01, max_dist=1):
     
     """
