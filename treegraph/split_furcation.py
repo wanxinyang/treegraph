@@ -84,7 +84,7 @@ def split_furcation_new(self):
 
             # calculate distance from point to surrounding nodes 
             # where p, q are the line ends
-            for i, q in enumerate([Px, Cx, Sx]):
+            for i, q in enumerate([Sx, Cx, Px]):
                 mean_distance[i] = d(CHx, q, child_cluster).mean()
 
             if np.all(np.isnan(mean_distance)): continue # something not right so skip
