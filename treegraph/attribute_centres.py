@@ -158,6 +158,14 @@ def distance_from_tip(self, centres, pc, vlength=.005):
 
         # regenerating slice_ids
         branch_pc.loc[:, 'slice_id'] = np.digitize(branch_pc.modified_distance, self.f.cumsum())
+        
+        # check new clusters are not smaller than min_pts, if they
+        # are cluster them with the next one
+        N = branch_pc.groupby('slice_id').x.count()
+        slice_plus = {n:0 if N[n] > self.min_pts else -1 if n == N.max() else 1 for n in N.index}
+        branch_pc.slice_id += branch_pc.slice_id.map(slice_plus)
+        
+        # normalise slice_id to 0
         branch_pc.slice_id = branch_pc.slice_id - branch_pc.slice_id.min()
 
         # reattribute centres centres
