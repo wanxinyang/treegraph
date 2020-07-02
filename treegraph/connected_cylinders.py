@@ -72,39 +72,38 @@ def generate_cylinders(self, radius_value='sf_radius'):
                 length = np.linalg.norm(c1 - c2)  
                 L = length
 ###             NEEDS FIXING!!!               
-                if row.ncyl == 0: # i.e. a furcation
+#                 if row.ncyl == 0: # i.e. a furcation
                 
-                    # parent branch radius
-                    parent_node = self.centres[self.centres.node_id == row.parent_node]
-                    if isinstance(radius_value, int) or isinstance(radius_value, float):
-                        parent_radius = radius_value
-                    else:
-                        parent_radius = parent_node[radius_value].values[0]
-                    if not np.isnan(parent_radius):  # something weird is happening so skip if NaN
+#                     # parent branch radius
+#                     parent_node = self.centres[self.centres.node_id == row.parent_node]
+#                     if isinstance(radius_value, int) or isinstance(radius_value, float):
+#                         parent_radius = radius_value
+#                     else:
+#                         parent_radius = parent_node[radius_value].values[0]
+#                     if not np.isnan(parent_radius):  # something weird is happening so skip if NaN
                         
-                        parent_branch = parent_node.nbranch.values[0]  
+#                         parent_branch = parent_node.nbranch.values[0]  
 
-                        # branch angle
-                        tip_id = self.centres.loc[(self.centres.nbranch == parent_branch) & 
-                                                  (self.centres.is_tip)].node_id.values[0]
-                        branch_path = np.array(self.path_ids[int(tip_id)], dtype=int)
-                        idx = np.where(branch_path == row.parent_node)[0][0]
-                        next_node = branch_path[idx - 1]
+#                         # branch angle
+#                         tip_id = self.centres.loc[(self.centres.nbranch == parent_branch) & 
+#                                                   (self.centres.is_tip)].node_id.values[0]
+#                         branch_path = np.array(self.path_ids[int(tip_id)], dtype=int)
+#                         idx = np.where(branch_path == row.parent_node)[0][0]
+#                         next_node = branch_path[idx - 1]
 
-                        A = node_angle_f(row[['cx', 'cy', 'cz']].values.astype(float),
-                                         parent_node[['cx', 'cy', 'cz']].values,
-                                         self.centres[self.centres.node_id == next_node][['cx', 'cy', 'cz']].values)
+#                         A = node_angle_f(row[['cx', 'cy', 'cz']].values.astype(float),
+#                                          parent_node[['cx', 'cy', 'cz']].values,
+#                                          self.centres[self.centres.node_id == next_node][['cx', 'cy', 'cz']].values)
 
-                        distance_to_edge =  (parent_radius / np.sin(A))[0][0]
-                        correction = 1 - (distance_to_edge / length)
-                        if np.isnan(correction): print(parent_radius, distance_to_edge, length)
-                        # calculate new start point of cylinder based upon radius of parent
-                        row[['cx', 'cy', 'cz']] = end_of_branch(correction, c1, c2).values
+#                         distance_to_edge =  (parent_radius / np.sin(A))[0][0]
+#                         correction = 1 - (distance_to_edge / length)
+#                         # calculate new start point of cylinder based upon radius of parent
+#                         row[['cx', 'cy', 'cz']] = end_of_branch(correction, c1, c2).values
                   
                 length *= correction
                 
-                if np.isnan(length):
-                    print(c1, c2, k1, k2, correction)
+#                 if np.isnan(length):
+#                     print(c1, c2, k1, k2, correction)
                 
                 if length < 0: continue
 #                 if length > 1: continue # remove overly long branches
