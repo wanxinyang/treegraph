@@ -89,7 +89,7 @@ def skeleton(self, eps=None):
         # separate different slice components e.g. different branches
         dslice = self.pc.loc[self.pc.slice_id == s][['x', 'y', 'z']]
         if len(dslice) < self.min_pts: continue
-#         eps_ = self.bin_width[s] / 2.
+#         eps = self.bin_width[s] / 2.
         dbscan = dbscan_(dslice, eps=eps)
         self.pc.loc[dslice.index, 'centre_id'] = dbscan.labels_
         centre_id_max =  dbscan.labels_.max() + 1 # +1 required as dbscan label start at zero
@@ -115,3 +115,17 @@ def skeleton(self, eps=None):
                         (self.pc.centre_id == c), 'node_id'] = idx
     
     self.centres.loc[:, 'node_id'] = self.centres.index
+    
+    # if the base node has one than more point then merge them i.e. there is one origin
+    if len(self.centres.loc[self.centres.slice_id == 0]) > 1:
+
+        rows = self.centres.loc[self.centres.slice_id == 0]
+        weights = rows.n_points.values / rows.n_points.sum()
+        wm = lambda x: np.average(x, weights=weights)
+        nd = {'slice_id':0, 'centre_id':0, 'cx':wm(rows.cx), 'cy':wm(rows.cy), 'cz':wm(rows.cz), 
+              'distance_from_base':wm(rows.distance_from_base), 'n_points':rows.n_points.sum(),
+              'node_id':rows.node_id.min()}
+        self.centres = self.centres.loc[~self.centres.index.isin(rows.index)]
+        self.centres = self.centres.append(nd, ignore_index=True)
+        
+    
