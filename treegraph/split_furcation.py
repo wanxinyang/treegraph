@@ -12,16 +12,26 @@ from treegraph.common import *
 from treegraph.third_party.point2line import *
 from treegraph.third_party.closestDistanceBetweenLines import *
 
+def intersection(A0, A1, B0, B1, clampA0=True, clampA=True):
+    
+    pA, pB, D = closestDistanceBetweenLines(A0, A1, B0, B1, clampA0=clampA, clampA1=clampA)
+    if np.isnan(D): D = np.inf
+    return pA, pB, D
 
 def split_furcation_new(self):  
     
     """
-    split fucation determines the correct location for the node.
+    split_fucation determines the correct location for a node which furcates.
     This is done by firstly identfying the node which is closest
-    to the "child" portion of the point cloud. Then using the
+    to the "child" portion of the parent cluster. Then using the
     point cloud and the first child node, the intersection between
-    the parent and child is determined
+    the parent and child is determined.
+    
+    This improves on the previous version as no new nodes are added
+    which can become complicated.
     """
+    
+    if self.verbose: print('aligning furcations...')
 
     for ix, row in tqdm(self.centres[self.centres.n_furcation > 0].sort_values('slice_id', ascending=False).iterrows(), 
                         total=self.centres[self.centres.n_furcation > 0].shape[0],
@@ -65,54 +75,63 @@ def split_furcation_new(self):
             label = np.where(all_nodes == child)[0]
             child_cluster = cluster.loc[cluster.index[np.where(labels == label)[0]]][['x', 'y', 'z']]
             child_centre = child_cluster.mean()
+            CHx = self.centres.loc[self.centres.node_id == child][['cx', 'cy', 'cz']].values[0]
+            Px = self.centres.loc[self.centres.node_id == previous_node[0]][['cx', 'cy', 'cz']].values[0] 
+            Cx = self.centres.loc[self.centres.node_id == row.node_id][['cx', 'cy', 'cz']].values[0]
+            Sx = self.centres.loc[self.centres.node_id == subsequent_node[0]][['cx', 'cy', 'cz']].values[0]
 
             mean_distance = np.zeros(3)
 
-            ### distance from points to line
-            # child node
-            p = self.centres.loc[self.centres.node_id == child][['cx', 'cy', 'cz']].values[0]
+            # calculate distance from point to surrounding nodes 
+            # where p, q are the line ends
+            for i, q in enumerate([Px, Cx, Sx]):
+                mean_distance[i] = d(CHx, q, child_cluster).mean()
 
-            # for all nodes on parent
-            for i, n in enumerate([subsequent_node[0], row.node_id, previous_node[0]]):
-                q = self.centres.loc[self.centres.node_id == n][['cx', 'cy', 'cz']].values[0]
-                mean_distance[i] = d(p, q, child_cluster).mean()
-
-            if not np.all(mean_distance): continue
+            if np.all(np.isnan(mean_distance)): continue # something not right so skip
 
             if np.argmin(mean_distance) == 0: # closer to subsequent node
-                A = self.centres.loc[self.centres.node_id == subsequent_node[0]][['cx', 'cy', 'cz']].values[0]
-                B = self.centres.loc[self.centres.node_id == row.node_id][['cx', 'cy', 'cz']].values[0]
+                pA, pB, D = intersection(Cx, Sx, child_centre, CHx)
                 update_slice_id(self, child, -1)
                 nnode = subsequent_node[0]
+                
+                # update path_ids
+                for k, v in self.path_ids.items():
+                    if row.node_id in v and child in v:
+                        self.path_ids[k] = v[:v.index(child)] + [subsequent_node[0]] +  v[v.index(child):]
 
             elif np.argmin(mean_distance) == 1: # closer to centre node
 
-                A = self.centres.loc[self.centres.node_id == subsequent_node[0]][['cx', 'cy', 'cz']].values[0]
-                B = self.centres.loc[self.centres.node_id == previous_node[0]][['cx', 'cy', 'cz']].values[0]
-                nnode = row.node_id       
+                nnode = row.node_id
+                A0 = self.centres.loc[self.centres.node_id == subsequent_node[0]][['cx', 'cy', 'cz']].values[0]
+                dP, dS = np.linalg.norm(CHx - Px), np.linalg.norm(CHx - Sx) 
+                if dP > dS:
+                    pA, pB, D = intersection(Cx, Sx, child_centre, CHx)
+                else:
+                    pA, pB, D = intersection(Cx, Px, child_centre, CHx)      
 
             else: # closer to previous node
 
-                A = self.centres.loc[self.centres.node_id == row.node_id][['cx', 'cy', 'cz']].values[0]
-                B = self.centres.loc[self.centres.node_id == previous_node[0]][['cx', 'cy', 'cz']].values[0]
+                pA, pB, D = intersection(Cx, Px, child_centre, CHx)
                 update_slice_id(self, child, -1)
                 nnode = previous_node[0]
-
-            # estimate the intersection (or narrowest point) between 2 lines
-            # A0 and A1 are "clamped" so the intersection point is A0 -> A1
-            pA, pB, D = closestDistanceBetweenLines(A, B,
-                                                    child_centre, 
-                                                    self.centres.loc[self.centres.node_id == child][['cx', 'cy', 'cz']].values[0],
-                                                    clampA0=True, clampA1=True)
+                
+                # update path_ids
+                for k, v in self.path_ids.items():
+                    if row.node_id in v and child in v:
+                        self.path_ids[k] = v[:v.index(row.node_id)] + v[v.index(child):]
 
             # add new position to temporary database
             # this is needed if more than one branch joins 
             # to the same node
             new_positions = new_positions.append(pd.Series({'node_id':nnode, 'cx':pA[0], 'cy':pA[1], 'cz':pA[2]}), 
                                                  ignore_index=True)
-
+            
+        # update centres with new positions, groupby is required as 
+        # 2 branches may be connected to 1 node and therefore the
+        # mean position is taken
         if len(new_positions) == 0 or np.all(np.isnan(new_positions[['cx', 'cy', 'cz']])): continue
         for roww in new_positions.groupby('node_id').mean().itertuples():
+            if np.any(np.isnan([roww.cx, roww.cy, roww.cz])): continue # something is wrong, leave where is is
             self.centres.loc[self.centres.node_id == roww.Index, 'cx'] = roww.cx 
             self.centres.loc[self.centres.node_id == roww.Index, 'cy'] = roww.cy 
             self.centres.loc[self.centres.node_id == roww.Index, 'cz'] = roww.cz 
