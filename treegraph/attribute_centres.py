@@ -2,6 +2,8 @@ import time
 import pandas as pd
 import numpy as np
 
+from tqdm.autonotebook import tqdm
+
 from treegraph.build_skeleton import generate_distance_graph
 
 def attribute_centres(centres, path_ids, verbose=False, branch_hierarchy=False):
@@ -131,7 +133,10 @@ def distance_from_tip(self, centres, pc, vlength=.005):
     snb_nbranch = single_node_branch.loc[single_node_branch == 1].index
     centres.loc[centres.nbranch.isin(snb_nbranch), 'nbranch'] = centres.loc[centres.nbranch.isin(snb_nbranch), 'parent']
     
-    for nbranch in np.sort(centres.nbranch.unique()):
+    if self.verbose: print('reattributing branches...')
+    for nbranch in tqdm(np.sort(centres.nbranch.unique()), 
+                        total=len(centres.nbranch.unique()), 
+                        disable=False if self.verbose else True):
         
         # nodes to identify points
         branch_nodes = centres.loc[centres.nbranch == nbranch].node_id.values
