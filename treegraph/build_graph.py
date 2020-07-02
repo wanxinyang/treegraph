@@ -18,25 +18,25 @@ def skeleton_path(centres, max_dist=.1, verbose=False):
   
     if verbose: print('generating graph...')
     for i, row in tqdm(enumerate(centres.itertuples()), total=len(centres), disable=False if verbose else True):
-        
+  
         # first node
-            if row.distance_from_base == centres.distance_from_base.min(): continue
+        if row.distance_from_base == centres.distance_from_base.min(): continue
 
-            n, dist = 3, np.inf
+        n, dist = 3, np.inf
 
-            while n < 10 and dist > max_dist:
+        while n < 10 and dist > max_dist:
 
-                # between required incase of small gap in pc
-                nbrs = centres.loc[centres.slice_id.between(row.slice_id - n, row.slice_id - 1)]
-                nbrs.loc[:, 'dist'] = np.linalg.norm(np.array([row.cx, row.cy, row.cz]) - 
-                                         nbrs[['cx', 'cy', 'cz']].values, 
-                                         axis=1)
-                dist = nbrs.dist.min()
-                n += 1
+            # between required incase of small gap in pc
+            nbrs = centres.loc[centres.slice_id.between(row.slice_id - n, row.slice_id - 1)]
+            nbrs.loc[:, 'dist'] = np.linalg.norm(np.array([row.cx, row.cy, row.cz]) - 
+                                     nbrs[['cx', 'cy', 'cz']].values, 
+                                     axis=1)
+            dist = nbrs.dist.min()
+            n += 1
 
-            edges = edges.append({'node1':int(row.node_id), 
-                                  'node2':int(nbrs.loc[nbrs.dist == nbrs.dist.min()].node_id.values[0]), 
-                                  'length':nbrs.dist.min()}, ignore_index=True)
+        edges = edges.append({'node1':int(row.node_id), 
+                              'node2':int(nbrs.loc[nbrs.dist == nbrs.dist.min()].node_id.values[0]), 
+                              'length':nbrs.dist.min()}, ignore_index=True)
         
     idx = centres.distance_from_base.idxmin() 
     base_id = centres.loc[idx].node_id
