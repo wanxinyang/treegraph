@@ -33,6 +33,9 @@ def skeleton_path(centres, max_dist=.1, verbose=False):
                                      axis=1)
             dist = nbrs.dist.min()
             n += 1
+        
+        if np.isnan(nbrs.dist.min()): # prob an outlying cluster that can be removed
+            continue
 
         edges = edges.append({'node1':int(row.node_id), 
                               'node2':int(nbrs.loc[nbrs.dist == nbrs.dist.min()].node_id.values[0]), 

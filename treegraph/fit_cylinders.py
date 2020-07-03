@@ -134,7 +134,7 @@ def cylinderFitting(xyz, sample=100):
         _, centre, rad, error = cylinder_fitting.fit(xyz)
         centre_inv = pca.inverse_transform(centre)
     except:
-        _, centre_inv, rad, error = cylinder_fitting.fit(xyz)
+        centre_inv, rad, error = xyz.mean(), np.nan, np.nan
 
     return rad, centre_inv, error
     
