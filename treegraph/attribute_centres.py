@@ -9,6 +9,9 @@ from treegraph.build_skeleton import generate_distance_graph
 def attribute_centres(centres, path_ids, verbose=False, branch_hierarchy=False):
     
     T = time.time()
+    
+    # remove nodes that are not graphed - prob outlying clusters 
+    centres = centres.loc[centres.node_id.isin(path_ids.keys())]
 
     # if node is a tip
     centres.loc[:, 'is_tip'] = False
