@@ -129,10 +129,13 @@ def cylinderFitting(xyz, sample=100):
     """
     
     xyz = xyz.sample(n=min([sample, len(xyz)]))
-    pca, xyz = PCA_(xyz[['x', 'y', 'z']].values)
+    try:
+        pca, xyz = PCA_(xyz[['x', 'y', 'z']].values)
+        _, centre, rad, error = cylinder_fitting.fit(xyz)
+        centre_inv = pca.inverse_transform(centre)
+    except:
+        _, centre_inv, rad, error = cylinder_fitting.fit(xyz)
 
-    _, centre, rad, error = cylinder_fitting.fit(xyz)
-    centre_inv = pca.inverse_transform(centre)
     return rad, centre_inv, error
     
 
