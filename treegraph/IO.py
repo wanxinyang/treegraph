@@ -30,7 +30,9 @@ def qsm2json(self, path, name=None):
     whole_branch['sd_tip_diameter'] = self.cyls[self.cyls.is_tip].radius.std()
     whole_branch['N_nodes'] = len(self.centres[self.centres.n_furcation > 0])
     whole_branch['N_furcations'] = self.centres.n_furcation.sum()
-    whole_branch['dist_between_tips'] = nn(self.centres.loc[self.centres.is_tip][['cx', 'cy', 'cz']].values, N=1).mean()
+    if len(self.centres.loc[self.centres.is_tip]) > 1:
+        whole_branch['dist_between_tips'] = nn(self.centres.loc[self.centres.is_tip][['cx', 'cy', 'cz']].values, N=1).mean()
+    else: whole_branch['dist_between_tips'] = np.nan
     
     ### internode data
     self.cyls.ncyl = self.cyls.ncyl.astype(int) 
