@@ -154,8 +154,8 @@ def distance_from_tip(self, centres, pc, vlength=.005):
             try:
                 branch_pc = generate_distance_graph(branch_pc, 
                                                     base_location=branch_pc.distance_from_base.idxmin(),
-                                                    downsample_cloud=False if len(branch_pc) <= 100 else vlength,
-                                                    knn=50)
+                                                    downsample_cloud=vlength,
+                                                    knn=100)
             except: pass
             branch_pc.distance_from_base += dfb_min
             
