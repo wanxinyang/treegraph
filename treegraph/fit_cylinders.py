@@ -6,7 +6,7 @@ from scipy import optimize
 from tqdm.autonotebook import tqdm
 
 from treegraph.third_party import cylinder_fitting
-
+from pandarallel import pandarallel
 
 def cylinder_fit(self):
 
@@ -24,7 +24,9 @@ def cylinder_fit(self):
     
     groupby_ = self.pc.loc[self.pc.node_id.isin(node_id)].groupby('node_id')
     tqdm.pandas(disable=False if self.verbose else True)
-    cyl = groupby_.progress_apply(cylinderFitting)
+    pandarallel.initialize(progress_bar=True)
+    cyl = groupby_.parallel_apply(RANSACcylinderFitting2)
+    cyl = cyl.loc[cyl.values != None]
 #     cyl = groupby_.progress_apply(partial_circle)
         
     results = pd.DataFrame(data=[c for c in cyl], columns=['sf_radius', 'centre', 'sf_error'])
@@ -121,7 +123,44 @@ def partial_circle(xyz):
     centre_inv = pca.inverse_transform(centre)
     return results.R_2.loc[1], centre_inv, results.residu.loc[1]  
     
-                    
+def RANSACcylinderFitting(xyz, sample=50):
+    
+#     xyz = xyz.sample(n=min([sample, len(xyz)]))
+    pca, xyz = PCA_(xyz[['x', 'y', 'z']].values)
+    
+    bestFit = None
+    bestErr = 99999
+
+    for i in range(100):
+
+        idx = np.random.choice(np.arange(len(xyz)), 
+                               size=min(int(len(xyz) / 2), sample) * 2,
+                               replace=False)
+        maybeInliers = xyz[idx[:int(len(idx) / 2)], :]
+        maybeModel = cylinder_fitting.fit(maybeInliers)
+        possibleInliers = xyz[idx[int(len(idx) / 2):], :]
+#         possibleInliers = np.delete(xyz, idx, axis=0)
+        error = np.linalg.norm(possibleInliers[:, :2] - maybeModel[1][:2], axis=1) - maybeModel[2]
+        alsoInliers = possibleInliers[error < .01, :] # 1 cm error is prob quite big?
+        
+        # if 10% of potential inliers are actual inliers
+        if len(alsoInliers) > len(possibleInliers) * .01:
+#             
+            allInliers = np.vstack([maybeInliers, alsoInliers])
+            betterModel = cylinder_fitting.fit(allInliers)
+            error = np.linalg.norm(possibleInliers[:, :2] - betterModel[1][:2], axis=1) - betterModel[2]
+            if error.mean() < bestErr:
+                bestFit = betterModel
+                bestErr = error.mean()
+    
+    try:
+        _, centre, rad, error = bestFit
+        centre_inv = pca.inverse_transform(centre)
+        return rad, centre_inv, error
+    except:
+        return
+    
+    
 def cylinderFitting(xyz, sample=100):
     
     """
@@ -180,4 +219,44 @@ def other_cylinder_fit(xyz):
 
     est_p, success = leastsq(errfunc, p, args=(x, y, z), maxfev=1000)
 
-    return est_p[4]
+    return est_p
+
+def RANSACcylinderFitting2(xyz, sample=20):
+
+#     if len(xyz) < 10: return xyz.mean(axis=0), np.nan, np.nan
+    
+#     xyz = xyz.sample(n=min([sample, len(xyz)]))
+    pca, xyz = PCA_(xyz[['x', 'y', 'z']].values)
+    
+    bestFit = None
+    bestErr = 99999
+     
+    for i in range(100):
+
+        idx = np.random.choice(np.arange(len(xyz)), 
+                               size=min(max(5, int(len(xyz) / 10)), sample) * 2,
+                               replace=False)
+        maybeInliers = xyz[idx[:int(len(idx) / 2)], :]
+        maybeModel = other_cylinder_fit(maybeInliers)
+        possibleInliers = xyz[idx[int(len(idx) / 2):], :]
+        error = np.linalg.norm(possibleInliers[:, :2] - maybeModel[:2], axis=1) - maybeModel[4]
+        alsoInliers = possibleInliers[error < maybeModel[4] * .05, :] # 1 cm error is prob quite big?
+        
+        # if 10% of potential inliers are actual inliers
+        if len(alsoInliers) > len(possibleInliers) * .01:
+            
+            allInliers = np.vstack([maybeInliers, alsoInliers])
+            betterModel = other_cylinder_fit(allInliers)
+            error = np.linalg.norm(possibleInliers[:, :2] - betterModel[:2], axis=1) - betterModel[4]
+            if error.mean() < bestErr:
+                bestFit = betterModel
+                bestErr = error.mean()
+
+    try:
+        x, y, alpha, beta, rad = bestFit
+        centre = np.array([x, y, xyz[:, 2].mean()])
+        centre_inv = pca.inverse_transform(centre)
+        error = np.nan
+        return rad, centre_inv, error
+    except:
+        return np.nan, xyz.mean(axis=0), np.nan
