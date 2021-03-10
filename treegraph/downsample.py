@@ -1,33 +1,26 @@
-import struct
 import pandas as pd
 import numpy as np
+import string
 
 # from scipy.spatial.distance import cdist
 from sklearn.neighbors import NearestNeighbors
 
-import numba as nb
-
-@nb.njit(fastmath=True,parallel=True)
-def calc_distance(vec_1,vec_2):
-    # https://stackoverflow.com/a/49490630/1414831, thanks to max9111
-    res=np.empty((vec_1.shape[0],vec_2.shape[0]),dtype=vec_1.dtype)
-    for i in nb.prange(vec_1.shape[0]):
-        for j in range(vec_2.shape[0]):
-            res[i,j]=np.sqrt((vec_1[i,0]-vec_2[j,0])**2+(vec_1[i,1]-vec_2[j,1])**2+(vec_1[i,2]-vec_2[j,2])**2)
-
-    return res
-
 
 def voxelise(tmp, length):
 
-    binarize = lambda x: struct.pack('i', int((x * 1000.) / (length * 1000)))
-
-    xb = tmp.x.apply(binarize)
-    yb = tmp.y.apply(binarize)
-    zb = tmp.z.apply(binarize)
-    tmp.loc[:, 'VX'] = xb + yb + zb
-
-    return tmp 
+    tmp.loc[:, 'xx'] = tmp.x // length * length
+    tmp.loc[:, 'yy'] = tmp.y // length * length
+    tmp.loc[:, 'zz'] = tmp.z // length * length
+    
+    code = lambda: ''.join(np.random.choice([x for x in string.ascii_letters], size=8))
+    
+    xD = {x:code() for x in tmp.xx.unique()}
+    yD = {y:code() for y in tmp.yy.unique()}
+    zD = {z:code() for z in tmp.zz.unique()}
+    
+    tmp.loc[:, 'VX'] = tmp.xx.map(xD) + tmp.yy.map(yD) + tmp.zz.map(zD)
+    
+    return tmp
 
 def downsample(pc, base_location, vlength, remove_noise=False, min_pts=1):
     
@@ -89,8 +82,8 @@ def downsample(pc, base_location, vlength, remove_noise=False, min_pts=1):
     pc.sort_values('downsample', ascending=False, inplace=True) # sorting to base_location index is correct
 
     # upadate base_id
-    nndist = np.linalg.norm(pc.loc[base_location][['x', 'y', 'z']] - 
-                            pc.loc[pc.downsample][['x', 'y', 'z']], axis=1)
+    nndist = np.linalg.norm(pc.loc[base_location][['x', 'y', 'z']].astype(float) - 
+                            pc.loc[pc.downsample][['x', 'y', 'z']].astype(float), axis=1)
     base_location = nndist.argmin()
     pc.reset_index(inplace=True, drop=True)
     
