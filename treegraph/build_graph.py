@@ -51,4 +51,7 @@ def skeleton_path(centres, max_dist=.1, verbose=False):
     path_distance, path_ids = nx.single_source_bellman_ford(G_skeleton, base_id)
     path_distance = {k: v if not isinstance(v, np.ndarray) else v[0] for k, v in path_distance.items()}
     
+    centres.distance_from_base = centres.node_id.map(path_distance) 
+    # required as sometimes pc2graph produces strange results
+    
     return path_distance, path_ids
