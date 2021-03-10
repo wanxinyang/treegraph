@@ -205,7 +205,7 @@ def smooth_branches(self, tip_radius=.005, plott=False):
         
         # calculate upper and lower bounds of cylinder radius as
         # a function of distance from base
-        X = np.linspace(0, path.distance_from_base.max(), 10)
+        X = np.linspace(0, path.distance_from_base.max(), 20)
         cut = pd.cut(path.distance_from_base, X)
         bounds = path.groupby(cut).mean()#.reset_index()
         bounds.set_index(np.arange(len(bounds)), inplace=True)
@@ -216,7 +216,6 @@ def smooth_branches(self, tip_radius=.005, plott=False):
         bounds.loc[idx, 'upp'] = tip_radius
         bounds.loc[idx, 'low'] = tip_radius
         bounds.loc[idx, 'avg'] = tip_radius
-        bounds.loc[idx, 'distance_from_base'] = bounds.distance_from_base.max() + 1
         bounds = bounds.loc[~np.isnan(bounds.distance_from_base)]
         
         for L in ['upp', 'low']:
@@ -239,11 +238,10 @@ def smooth_branches(self, tip_radius=.005, plott=False):
 
             branch.loc[:, L] = np.poly1d(p)(branch.distance_from_base)
 
-            if plott: ax.plot(X, np.poly1d(p)(X), c=C)
-        
+        branch.m_radius = np.abs(branch.m_radius)
         branch.loc[branch.m_radius > branch.upp, 'm_radius'] = branch.loc[branch.m_radius > branch.upp].upp
         branch.loc[branch.m_radius < branch.low, 'm_radius'] = branch.loc[branch.m_radius < branch.low].low
-        branch.loc[branch.m_radius < tip_radius] = tip_radius
+        branch.loc[branch.m_radius < tip_radius, 'm_radius'] = tip_radius
         branch.loc[np.isnan(branch.m_radius), 'm_radius'] = np.poly1d(p)(branch.loc[np.isnan(branch.m_radius)].distance_from_base)
 
         self.centres.loc[branch.index, 'm_radius'] = branch.m_radius
