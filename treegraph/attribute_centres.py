@@ -34,7 +34,7 @@ def attribute_centres(centres, path_ids, verbose=False, branch_hierarchy=False):
             
     if verbose: print('\tbranch lengths:', time.time() - T)
             
-    centres.sort_values('slice_id', inplace=True)
+    centres.sort_values(['slice_id', 'distance_from_base'], inplace=True)
     centres.loc[:, 'nbranch'] = -1
     centres.loc[:, 'ncyl'] = -1
 
@@ -86,7 +86,7 @@ def attribute_centres(centres, path_ids, verbose=False, branch_hierarchy=False):
     if verbose: print('\tidentify parent:', time.time() - T)
 
     # loop over branches and attribute internode
-    centres.sort_values(['nbranch', 'ncyl'], inplace=True)
+    centres.sort_values(['slice_id', 'distance_from_base'], inplace=True)
     centres.loc[:, 'ninternode'] = -1
     internode_n = 0
 
@@ -100,13 +100,21 @@ def attribute_centres(centres, path_ids, verbose=False, branch_hierarchy=False):
         
         branch_hierarchy = {0:{'all':np.array([0]), 'above':centres.nbranch.unique()[1:]}}
 
-        for b in np.arange(centres.nbranch.max() + 1):
+        for b in np.sort(centres.nbranch.unique()):
             if b == 0: continue
             parent = centres.loc[(centres.nbranch == b) & (centres.ncyl == 0)].parent.values[0]
+#             if b == parent: 
+#                 # need to figure out why some branches are their own parents....
+#                 # think it is because they are isolated 
+#                 nodes = centres.loc[centres.nbranch == b].node_id.values
+#                 centres = centres.loc[~centres.node_id.isin(nodes)]
+#                 pc = pc.loc[~pc.node_id.isin(nodes)]
+#                 print(b)
+#                 continue
             branch_hierarchy[b] = {}
             branch_hierarchy[b]['all'] = np.hstack([[b], branch_hierarchy[parent]['all']])
 
-        for b in np.arange(centres.nbranch.max() + 1):
+        for b in centres.nbranch.unique():
             if b == 0: continue
             ba = set()
             for k, v in branch_hierarchy.items():
@@ -201,7 +209,7 @@ def distance_from_tip(self, centres, pc, vlength=.005):
         # if branch furcates identify new node_id and slice_id
         for _, row in centres.loc[(centres.nbranch == nbranch) & (centres.n_furcation > 0)].iterrows():
             
-            new_centres.loc[:, 'dist2fur'] = np.linalg.norm(row[['cx', 'cy', 'cz']] - 
+            new_centres.loc[:, 'dist2fur'] = np.linalg.norm(row[['cx', 'cy', 'cz']].astype(float) - 
                                                             new_centres[['cx', 'cy', 'cz']],
                                                             axis=1)
             PC_nodes.loc[PC_nodes.parent_node == row.node_id, 'new_parent'] = new_centres.loc[new_centres.dist2fur.idxmin()].node_id
