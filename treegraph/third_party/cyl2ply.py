@@ -5,6 +5,8 @@ import sys
 import argparse
 import pandas as pd
 
+from tqdm.autonotebook import tqdm
+
 # header needed in ply-file
 header = ["ply",
           "format ascii 1.0",
@@ -166,7 +168,7 @@ def pandas2ply(cyls, field, out):
     tempfaces = []
     
     add = 0
-    for i, (ix, cyl) in enumerate(cyls.iterrows()):
+    for i, (ix, cyl) in tqdm(enumerate(cyls.iterrows()), total=len(cyls)):
 
         nvertex = 48                       # number of vertices, do not change!
         rad = cyl.radius                   # cylinder radius
@@ -201,12 +203,13 @@ def pandas2ply(cyls, field, out):
         eucl = (axis[0]**2+axis[1]**2+axis[2]**2)**0.5
         euclr = (raxis[0]**2+raxis[1]**2+raxis[2]**2)**0.5
 
+#         if euclr == 0: euclr = np.nan # not sure why this happens
         for i in range(3):
             raxis[i] /= euclr
 
         angle = math.acos(dot(u,axis)/eucl)
 
-        M = rotation_matrix(raxis,angle)
+        M = rotation_matrix(raxis, angle)
 
         for i in range(len(ps)):
             p = ps[i]
