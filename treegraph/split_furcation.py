@@ -63,17 +63,19 @@ def split_furcation_new(self):
         distances = np.zeros((len(all_nodes), len(cluster)))
 
         for i, (_, node) in enumerate(all_nodes.iterrows()):
-            distances[i, :] = np.linalg.norm(node[['cx', 'cy', 'cz']].values - cluster[['x', 'y', 'z']], 
+            distances[i, :] = np.linalg.norm(node[['cx', 'cy', 'cz']].astype(float).values - 
+                                             cluster[['x', 'y', 'z']], 
                                              axis=1)
 
         labels = distances.T.argmin(axis=1)
         new_positions = pd.DataFrame(columns=['node_id', 'cx', 'cy', 'cz'])
 
         for child in child_nodes:
-
+            
             # separaate points
             label = np.where(all_nodes == child)[0]
             child_cluster = cluster.loc[cluster.index[np.where(labels == label)[0]]][['x', 'y', 'z']]
+#             child_cluster = cluster.loc[cluster.node_id == child]
             child_centre = child_cluster.mean()
             CHx = self.centres.loc[self.centres.node_id == child][['cx', 'cy', 'cz']].values[0]
             Px = self.centres.loc[self.centres.node_id == previous_node[0]][['cx', 'cy', 'cz']].values[0] 
@@ -87,7 +89,8 @@ def split_furcation_new(self):
             for i, q in enumerate([Sx, Cx, Px]):
                 mean_distance[i] = d(CHx, q, child_cluster).mean()
 
-            if np.all(np.isnan(mean_distance)): continue # something not right so skip
+            if np.all(np.isnan(mean_distance)): 
+                continue # something not right so skip
 
             if np.argmin(mean_distance) == 0: # closer to subsequent node
                 pA, pB, D = intersection(Cx, Sx, child_centre, CHx)
@@ -100,7 +103,6 @@ def split_furcation_new(self):
                         self.path_ids[k] = v[:v.index(child)] + [subsequent_node[0]] +  v[v.index(child):]
 
             elif np.argmin(mean_distance) == 1: # closer to centre node
-
                 nnode = row.node_id
                 A0 = self.centres.loc[self.centres.node_id == subsequent_node[0]][['cx', 'cy', 'cz']].values[0]
                 dP, dS = np.linalg.norm(CHx - Px), np.linalg.norm(CHx - Sx) 
@@ -110,7 +112,6 @@ def split_furcation_new(self):
                     pA, pB, D = intersection(Cx, Px, child_centre, CHx)      
 
             else: # closer to previous node
-
                 pA, pB, D = intersection(Cx, Px, child_centre, CHx)
                 update_slice_id(self, child, -1)
                 nnode = previous_node[0]
