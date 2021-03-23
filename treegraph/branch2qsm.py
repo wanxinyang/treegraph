@@ -1,80 +1,74 @@
-import datetime
-import sys
-import os
-import argparse
-
-from treegraph.common import *
-from treegraph.IO import *
-from treegraph.downsample import *
-from treegraph.build_skeleton import *
-from treegraph.build_graph import *
-from treegraph.attribute_centres import *
-from treegraph.split_furcation import *
-from treegraph.fit_cylinders import *
-from treegraph.connected_cylinders import *
-
+import treegraph
+from treegraph import downsample
+from treegraph import distance_from_base
+from treegraph import calculate_voxel_length
+from treegraph import build_skeleton
+from treegraph import build_graph
+from treegraph import attribute_centres
+from treegraph import distance_from_tip
+from treegraph import split_furcation
+from treegraph import fit_cylinders
+from treegraph import taper
+from treegraph import generate_cylinder_model
+from treegraph import IO
 
 def run(path, base_idx=None, attribute='nbranch', radius='m_radius', verbose=False):
 
-    # read in pc
-    pc = ply_io.read_ply(path)
-    pc.rename(columns={x:x.replace('scalar_', '') for x in pc.columns}, inplace=True)
+    self = treegraph.initialise(path,
+                                base_location=None,
+                                min_pts=5,
+                                downsample=.001,
+                                minbin=.03,
+                                maxbin=.01,
+                                cluster_size=.1,
+                                columns=['x', 'y', 'z'],
+                                verbose=True)
 
-    if verbose: print('begin:', datetime.datetime.now())
-    self = treegraph(pc, slice_interval=.2, min_pts=10, base_location=base_idx, verbose=verbose)
+    # downsample 
+    if self.downsample:
+        self.pc, self.base_location = downsample.run(self.pc, 
+                                                     self.downsample, 
+                                                     base_location=self.base_location,
+                                                     delete=True, 
+                                                     verbose=self.verbose)
+    else:
+        self.pc = downsample.voxelise(self.pc)
 
-    # downsample branches before running treegraph
-    self.pc, self.base_idx = downsample(self.pc, 
-                                        self.pc.z.idxmin() if base_idx == None else base_idx, 
-                                        .001, remove_noise=False)
-    self.pc = self.pc[self.pc.downsample]
-    del self.pc['downsample']
-    self.pc.reset_index(inplace=True)
+    # build and attribute initial skeleton
+    self.pc = distance_from_base.run(self.pc, self.base_location, cluster_size=self.cluster_size)
+    self.pc, self.bins = calculate_voxel_length.run(self.pc, exponent=1, maxbin=self.maxbin, minbin=self.minbin)
+    self.pc, self.centres = build_skeleton.run(self.pc, eps=.005, min_pts=self.min_pts, verbose=True)
+    self.path_distance, self.path_ids = build_graph.run(self.centres, max_dist=.1, verbose=self.verbose)
+    self.centres, self.branch_hierarchy = attribute_centres.run(self.centres, self.path_ids, 
+                                                                branch_hierarchy=True, verbose=True)
 
-    # run treegraph
-    self.pc = generate_distance_graph(self.pc, self.base_idx, downsample_cloud=.005)
-    calculate_voxel_length(self, exponent=1, maxbin=.03, minbin=.01)
-    skeleton(self, eps=.005)
-    self.path_distance, self.path_ids = skeleton_path(self.centres, max_dist=.1, verbose=self.verbose)
-    self.centres, self.branch_hierarchy = attribute_centres(self.centres, self.path_ids, 
-                                                            branch_hierarchy=True)
+    # rebuild using distance from tip
+    self.centres, self.pc = distance_from_tip.run(self.pc, self.centres, self.bins, 
+                                                  vlength=.1, 
+                                                  min_pts=self.min_pts, 
+                                                  verbose=True)
+    self.path_distance, self.path_ids = build_graph.run(self.centres, max_dist=.1, verbose=self.verbose)
+    self.centres, self.branch_hierarchy = attribute_centres.run(self.centres, self.path_ids, 
+                                                                branch_hierarchy=True, verbose=True)
+
+    # rebuild furcation nodes
+    self.centres, self.path_ids, self.branch_hierarchy = split_furcation.run(self.pc.copy(), 
+                                                                             self.centres.copy(), 
+                                                                             self.path_ids.copy(), 
+                                                                             self.branch_hierarchy.copy(),
+                                                                             verbose=True)
+    self.path_distance, self.path_ids = build_graph.run(self.centres, max_dist=.5, verbose=self.verbose)
+    self.centres, self.branch_hierarchy = attribute_centres.run(self.centres, self.path_ids, 
+                                                                branch_hierarchy=True, verbose=True)
+
+    # %autoreload 2
+    # generate cylinders and apply taper function
+    self.centres = fit_cylinders.run(self.pc.copy(), self.centres.copy(), 
+                                     min_pts=self.min_pts, 
+                                     ransac_iterations=20,
+                                     verbose=self.verbose)
+    self.centres.loc[:, 'distance_from_base'] = self.centres.node_id.map(self.path_distance)
     
-    # recalculate slice_id based on distance from tip and rebuild graph
-    self.centres, self.pc = distance_from_tip(self, self.centres, self.pc)
-    self.path_distance, self.path_ids = skeleton_path(self.centres, max_dist=.1, verbose=self.verbose)
-    self.centres, self.branch_hierarchy = attribute_centres(self.centres, self.path_ids, 
-                                                            branch_hierarchy=True)
-    if verbose: print('attribute_centres...')
-
-    # split furcations and reattribute
-    split_furcation_new(self)
-    if verbose: print('attribute_centres...')
-    self.centres, self.branch_hierarchy = attribute_centres(self.centres, self.path_ids, 
-                                                                branch_hierarchy=True)
-
-    # delete single cylinder branches    
-    idx = self.centres.loc[(self.centres.ncyl == 0) & (self.centres.is_tip)].index
-    self.centres = self.centres.loc[~self.centres.index.isin(idx)]
-        
-    # fit cylinders
-    if verbose: print('fitting cylinders..' )
-    cylinder_fit(self)
-    
-    # smooth cylinders
-    smooth_branches(self)
-    
-    # generate cyls
-    generate_cylinders(self, radius_value=radius)
-    
-    # save data
-    qsm2json(self, os.path.splitext(path)[0] + '.json', name=path)
-    to_ply(self, os.path.splitext(path)[0] + '.cyls.ply')
-    
-    if verbose: print('end:', datetime.datetime.now())
-        
-    return self
-
-
 if __name__ == "__main__":
     
     parser = argparse.ArgumentParser()
