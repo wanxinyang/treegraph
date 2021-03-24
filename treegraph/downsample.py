@@ -64,7 +64,7 @@ def run(pc, vlength,
     pc = pc.drop(columns=[c for c in ['downsample', 'VX'] if c in pc.columns])   
  
     if base_location is None:
-        base_location = pc.loc[pc.z.idxmin()].pid
+        base_location = pc.loc[pc.z.idxmin()].pid.values[0]
 
     columns = pc.columns.to_list() + keep_columns # required for tidy up later
     pc = voxelise(pc, vlength, method=voxel_method)
@@ -111,7 +111,7 @@ def run(pc, vlength,
     if base_location not in pc.loc[pc.downsample].pid.values:
         pc.loc[pc.downsample, 'nndist'] = np.linalg.norm(pc.loc[pc.pid == base_location][['x', 'y', 'z']].values - 
                                                          pc.loc[pc.downsample][['x', 'y', 'z']], axis=1)
-        base_location = pc.loc[pc.nndist == pc.nndist.min()].pid
+        base_location = pc.loc[pc.nndist == pc.nndist.min()].pid.values[0]
     
     pc.reset_index(inplace=True, drop=True)
 

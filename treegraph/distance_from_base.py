@@ -28,7 +28,7 @@ def run(pc, base_location=None, cluster_size=False, knn=100, verbose=False):
     
     c = ['x', 'y', 'z']
     G = p2g.array_to_graph(pc.loc[pc.downsample][c] if 'downsample' in pc.columns else pc[c], 
-                           base_id=pc.loc[pc.pid == base_location.values[0]].index[0], 
+                           base_id=pc.loc[pc.pid == base_location].index[0], 
                            kpairs=3, 
                            knn=knn, 
                            nbrs_threshold=.2,
@@ -36,7 +36,7 @@ def run(pc, base_location=None, cluster_size=False, knn=100, verbose=False):
 #                                 graph_threshold=.05
                             )
 
-    node_ids, distance, path_dict = p2g.extract_path_info(G, pc.loc[pc.pid == base_location.values[0]].index[0])
+    node_ids, distance, path_dict = p2g.extract_path_info(G, pc.loc[pc.pid == base_location].index[0])
     
     if 'distance_from_base' in pc.columns:
         del pc['distance_from_base']
