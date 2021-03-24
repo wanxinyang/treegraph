@@ -48,7 +48,7 @@ def run(pc, centres, bins, vlength=.005, verbose=False, min_pts=0):
             branch_pc.loc[:, 'modified_distance'] = branch_pc.distance_from_base + tip_diff
 
         # regenerating slice_ids
-        branch_pc.loc[:, 'slice_id'] = np.digitize(branch_pc.modified_distance, np.array(list(bins.values())))
+        branch_pc.loc[:, 'slice_id'] = np.digitize(branch_pc.modified_distance, np.array(list(bins.values())).cumsum())
         
         # check new clusters are not smaller than min_pts, if they
         # are cluster them with the next one

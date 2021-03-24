@@ -22,17 +22,19 @@ def nn(arr, N):
     return distances[:, 1]
 
 
-def update_slice_id(self, node_id, X):
+def update_slice_id(centres, branch_hierarchy, node_id, X):
     
-    node = self.centres.loc[self.centres.node_id == node_id]
+    node = centres.loc[centres.node_id == node_id]
     nbranch = node.nbranch.values[0]
     ncyl = node.ncyl.values[0]
     
     # update slices of same branch above ncyls
-    self.centres.loc[(self.centres.nbranch == nbranch) & (self.centres.ncyl >= ncyl), 'slice_id'] += X
+    centres.loc[(centres.nbranch == nbranch) & (centres.ncyl >= ncyl), 'slice_id'] += X
     
     # update branches above nbranch
-    self.centres.loc[self.centres.nbranch.isin(self.branch_hierarchy[nbranch]['above']), 'slice_id'] += X
+    centres.loc[centres.nbranch.isin(branch_hierarchy[nbranch]['above']), 'slice_id'] += X
+    
+    return centres, branch_hierarchy
 
     
 class treegraph:

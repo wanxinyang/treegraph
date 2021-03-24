@@ -9,36 +9,38 @@ from tqdm.autonotebook import tqdm
 from treegraph.third_party import cylinder_fitting
 from pandarallel import pandarallel
 
-def cylinder_fit(self):
+def run(pc, centres, min_pts=10, ransac_iterations=50, verbose=False):
     
     print('running new version')
 
 #     if 'sf_radius' in self.centres.columns:
 #         del self.centres['sf_radius']
 
-    for c in self.centres.columns:
-        if 'sf' in c: del self.centres[c]
+    for c in centres.columns:
+        if 'sf' in c: del centres[c]
     
-    node_id = self.centres[self.centres.n_points > self.min_pts].sort_values('n_points').node_id.values
+    node_id = centres[centres.n_points > min_pts].sort_values('n_points').node_id.values
 
-    groupby_ = self.pc.loc[self.pc.node_id.isin(node_id)].groupby('node_id')
-    pandarallel.initialize(progress_bar=True, verbose=2)
+    groupby_ = pc.loc[pc.node_id.isin(node_id)].groupby('node_id')
+    pandarallel.initialize(progress_bar=verbose, verbose=2)
     
-    cyl = groupby_.parallel_apply(RANSAC_helper)
+    cyl = groupby_.parallel_apply(RANSAC_helper, ransac_iterations)
 #     cyl = groupby_.apply(RANSAC_helper)
     cyl.columns=['sf_radius', 'centre']
     cyl.reset_index(inplace=True)
     cyl.loc[:, 'sf_cx'] = cyl.centre.apply(lambda c: c[0])
     cyl.loc[:, 'sf_cy'] = cyl.centre.apply(lambda c: c[1])
     cyl.loc[:, 'sf_cz'] = cyl.centre.apply(lambda c: c[2])
-    self.centres = pd.merge(self.centres, 
-                            cyl[['node_id', 'sf_radius', 'sf_cx', 'sf_cy', 'sf_cz']], 
-                            on='node_id', 
-                            how='left')
+    centres = pd.merge(centres, 
+                       cyl[['node_id', 'sf_radius', 'sf_cx', 'sf_cy', 'sf_cz']], 
+                       on='node_id', 
+                       how='left')
     
-#     self.centres.cx = self.centres.sf_cx
-#     self.centres.cy = self.centres.sf_cy
-#     self.centres.cz = self.centres.sf_cz
+#     centres.cx = centres.sf_cx
+#     centres.cy = centres.sf_cy
+#     centres.cz = centres.sf_cz
+    
+    return centres
 
 def partial_circle(xyz):
         
@@ -130,13 +132,13 @@ def other_cylinder_fit2(xyz):
 
     return np.abs(rad), centre
 
-def RANSACcylinderFitting3(xyz, N=100):
+def RANSACcylinderFitting3(xyz, N):
     
     bestFit = None
     bestErr = 99999
     
     try:
-        for i in range(20):
+        for i in range(N):
 
             idx = np.random.choice(xyz.index, 
                                    size=min(max(10, int(len(xyz) / 10)), N) * 2,
@@ -150,7 +152,7 @@ def RANSACcylinderFitting3(xyz, N=100):
 
             radius, centre = other_cylinder_fit2(maybeInliers)
             
-            if not sample.z.min() - radius < centre[0] < sample.z.max() + radius and \
+            if not sample.z.min() - radius < centre[0] < sample.z.max() + radius or \
                not sample.y.min() - radius < centre[1] < sample.y.max() + radius: continue
             
             error = np.abs(np.linalg.norm(possibleInliers[['z', 'y']] - centre, axis=1)) - radius
@@ -161,6 +163,10 @@ def RANSACcylinderFitting3(xyz, N=100):
 
                 allInliers = maybeInliers.append(alsoInliers)
                 radius, centre = other_cylinder_fit2(allInliers)
+                
+                if not sample.z.min() - radius < centre[0] < sample.z.max() + radius or \
+                   not sample.y.min() - radius < centre[1] < sample.y.max() + radius: continue
+                
                 error = np.linalg.norm(allInliers[['z', 'y']] - centre, axis=1) - radius
 
                 if error.mean() < bestErr:
@@ -182,14 +188,22 @@ def NotRANSAC(xyz):
         pca = PCA(n_components=3, svd_solver='auto').fit(xyz)
         xyz[['x', 'y', 'z']] = pca.transform(xyz)
         radius, centre = other_cylinder_fit2(xyz)
-        centre = np.hstack([xyz.x.mean(), centre])
+        
+#         centre = np.hstack([xyz.x.mean(), centre])
+        
+        if xyz.z.min() - radius < centre[0] < xyz.z.max() + radius or \
+           xyz.y.min() - radius < centre[1] < xyz.y.max() + radius: 
+            centre = np.hstack([xyz.x.mean(), centre])
+        else:
+            centre = xyz.mean().values
+        
         centre = pca.inverse_transform(centre)
     except:
         radius, centre = [np.nan, xyz[['x', 'y', 'z']].mean(axis=0).vales]
     
     return [radius, centre]
 
-def RANSAC_helper(xyz):
+def RANSAC_helper(xyz, N):
     
     try:
 #     if len(xyz) == 0:
@@ -199,7 +213,7 @@ def RANSAC_helper(xyz):
         elif len(xyz) < 50:
             cylinder = NotRANSAC(xyz)
         else:
-            cylinder = RANSACcylinderFitting3(xyz)
+            cylinder = RANSACcylinderFitting3(xyz, N)
             if cylinder == None: cylinder = None#other_cylinder_fit(xyz)
                 
     except:
