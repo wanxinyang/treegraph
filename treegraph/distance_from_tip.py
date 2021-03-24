@@ -96,7 +96,7 @@ def run(pc, centres, bins, vlength=.005, verbose=False, min_pts=0):
         
         new_pc = new_pc.append(branch_pc)
 
-    new_pc.reset_index(inplace=True)
-    centres.reset_index(inplace=True)
+    new_pc.reset_index(inplace=True, drop=True)
+    centres.reset_index(inplace=True, drop=True)
     
     return centres, new_pc

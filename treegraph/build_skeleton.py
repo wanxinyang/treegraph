@@ -69,12 +69,13 @@ def run(pc, eps, min_pts=0, verbose=False):
     centres = pd.DataFrame()
     pc = pd.DataFrame()
     for x in sent_back:
+        if len(x) == 0: continue
         centres = centres.append(x[0])
         pc = pc.append(x[1])
 
     # reset index as appended df have common values
-    centres.reset_index(inplace=True)
-    pc.reset_index(inplace=True)
+    centres.reset_index(inplace=True, drop=True)
+    pc.reset_index(inplace=True, drop=True)
 
     if 'node_id' in pc.columns: pc = pc.drop(columns=['node_id'])
     

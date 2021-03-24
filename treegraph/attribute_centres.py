@@ -104,6 +104,8 @@ def run(centres, path_ids, verbose=False, branch_hierarchy=False):
         pbar.set_description('attributed internodes', refresh=True)
         pbar.update(1)
         
+        centres = centres.reset_index(drop=True)
+        
         if branch_hierarchy:
 
             branch_hierarchy = {0:{'all':np.array([0]), 'above':centres.nbranch.unique()[1:]}}
