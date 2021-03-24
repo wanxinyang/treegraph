@@ -61,14 +61,21 @@ def run(path, base_idx=None, attribute='nbranch', radius='m_radius', verbose=Fal
     self.centres, self.branch_hierarchy = attribute_centres.run(self.centres, self.path_ids, 
                                                                 branch_hierarchy=True, verbose=True)
 
-    # %autoreload 2
     # generate cylinders and apply taper function
     self.centres = fit_cylinders.run(self.pc.copy(), self.centres.copy(), 
                                      min_pts=self.min_pts, 
                                      ransac_iterations=20,
                                      verbose=self.verbose)
     self.centres.loc[:, 'distance_from_base'] = self.centres.node_id.map(self.path_distance)
+
+
+    self.centres = taper.run(self.centres, self.path_ids, tip_radius=.001)
     
+    # generate cylinder model and export
+    generate_cylinder_model.run(self, radius_value='m_radius')
+    IO.to_ply(self, os.path.splitext(branch)[0] + '.cyls.ply')
+    IO.qsm2json(self, os.path.splitext(branch)[0] + '.json')
+ 
 if __name__ == "__main__":
     
     parser = argparse.ArgumentParser()
