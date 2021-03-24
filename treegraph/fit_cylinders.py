@@ -25,12 +25,14 @@ def run(pc, centres, min_pts=10, ransac_iterations=50, verbose=False):
     pandarallel.initialize(progress_bar=verbose, verbose=2)
     
     cyl = groupby_.parallel_apply(RANSAC_helper, ransac_iterations)
-#     cyl = groupby_.apply(RANSAC_helper)
-    cyl.columns=['sf_radius', 'centre']
-    cyl.reset_index(inplace=True)
-    cyl.loc[:, 'sf_cx'] = cyl.centre.apply(lambda c: c[0])
-    cyl.loc[:, 'sf_cy'] = cyl.centre.apply(lambda c: c[1])
-    cyl.loc[:, 'sf_cz'] = cyl.centre.apply(lambda c: c[2])
+    
+    cyl = cyl.reset_index()
+    cyl.columns=['node_id', 'result']
+    cyl.loc[:, 'sf_radius'] = cyl.result.apply(lambda c: c[0])
+    cyl.loc[:, 'sf_cx'] =  cyl.result.apply(lambda c: c[1][0])
+    cyl.loc[:, 'sf_cy'] =  cyl.result.apply(lambda c: c[1][1])
+    cyl.loc[:, 'sf_cz'] =  cyl.result.apply(lambda c: c[1][2])
+    
     centres = pd.merge(centres, 
                        cyl[['node_id', 'sf_radius', 'sf_cx', 'sf_cy', 'sf_cz']], 
                        on='node_id', 
