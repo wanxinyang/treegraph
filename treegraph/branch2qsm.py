@@ -1,3 +1,4 @@
+import os
 import argparse
 
 import treegraph
@@ -17,12 +18,12 @@ from treegraph import IO
 def run(path, base_idx=None, attribute='nbranch', radius='m_radius', verbose=False):
 
     self = treegraph.initialise(path,
-                                base_location=None,
+                                base_location=base_idx,
                                 min_pts=5,
                                 downsample=.001,
-                                minbin=.03,
-                                maxbin=.01,
-                                cluster_size=.1,
+                                minbin=.01,
+                                maxbin=.03,
+                                cluster_size=.005,
                                 columns=['x', 'y', 'z'],
                                 verbose=True)
 
@@ -46,7 +47,7 @@ def run(path, base_idx=None, attribute='nbranch', radius='m_radius', verbose=Fal
 
     # rebuild using distance from tip
     self.centres, self.pc = distance_from_tip.run(self.pc, self.centres, self.bins, 
-                                                  vlength=.1, 
+                                                  vlength=self.cluster_size, 
                                                   min_pts=self.min_pts, 
                                                   verbose=True)
     self.path_distance, self.path_ids = build_graph.run(self.centres, max_dist=.1, verbose=self.verbose)
@@ -59,14 +60,14 @@ def run(path, base_idx=None, attribute='nbranch', radius='m_radius', verbose=Fal
                                                                              self.path_ids.copy(), 
                                                                              self.branch_hierarchy.copy(),
                                                                              verbose=True)
-    self.path_distance, self.path_ids = build_graph.run(self.centres, max_dist=.5, verbose=self.verbose)
+    self.path_distance, self.path_ids = build_graph.run(self.centres, max_dist=.1, verbose=self.verbose)
     self.centres, self.branch_hierarchy = attribute_centres.run(self.centres, self.path_ids, 
                                                                 branch_hierarchy=True, verbose=True)
 
     # generate cylinders and apply taper function
     self.centres = fit_cylinders.run(self.pc.copy(), self.centres.copy(), 
                                      min_pts=self.min_pts, 
-                                     ransac_iterations=20,
+                                     ransac_iterations=5,
                                      verbose=self.verbose)
     self.centres.loc[:, 'distance_from_base'] = self.centres.node_id.map(self.path_distance)
 
@@ -75,8 +76,8 @@ def run(path, base_idx=None, attribute='nbranch', radius='m_radius', verbose=Fal
     
     # generate cylinder model and export
     generate_cylinder_model.run(self, radius_value='m_radius')
-    IO.to_ply(self, os.path.splitext(branch)[0] + '.cyls.ply')
-    IO.qsm2json(self, os.path.splitext(branch)[0] + '.json')
+    IO.to_ply(self.cyls, os.path.splitext(os.path.split(path)[1])[0] + '.cyls.ply', verbose=True)
+    IO.qsm2json(self, os.path.splitext(os.path.split(path)[1])[0] + '.json')
  
 if __name__ == "__main__":
     
