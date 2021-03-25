@@ -24,7 +24,7 @@ def run(pc, centres, min_pts=10, ransac_iterations=50, verbose=False):
     groupby_ = pc.loc[pc.node_id.isin(node_id)].groupby('node_id')
     pandarallel.initialize(progress_bar=verbose, verbose=2)
     
-    cyl = groupby_.parallel_apply(RANSAC_helper, ransac_iterations)
+    cyl = groupby_.parallel_apply(RANSAC_helper, ransac_iterations, 100)
     
     cyl = cyl.reset_index()
     cyl.columns=['node_id', 'result']
@@ -134,16 +134,16 @@ def other_cylinder_fit2(xyz):
 
     return np.abs(rad), centre
 
-def RANSACcylinderFitting3(xyz, N):
+def RANSACcylinderFitting3(xyz, iterations, sample):
     
     bestFit = None
     bestErr = 99999
     
     try:
-        for i in range(N):
+        for i in range(iterations):
 
             idx = np.random.choice(xyz.index, 
-                                   size=min(max(10, int(len(xyz) / 10)), N) * 2,
+                                   size=min(max(10, int(len(xyz) / 10)), sample) * 2,
                                    replace=False)
             sample = xyz.loc[idx][['x', 'y', 'z']].copy()
             pca = PCA(n_components=3, svd_solver='auto').fit(sample)
@@ -205,7 +205,7 @@ def NotRANSAC(xyz):
     
     return [radius, centre]
 
-def RANSAC_helper(xyz, N):
+def RANSAC_helper(xyz, iterations, sample):
     
     try:
 #     if len(xyz) == 0:
@@ -215,7 +215,7 @@ def RANSAC_helper(xyz, N):
         elif len(xyz) < 50:
             cylinder = NotRANSAC(xyz)
         else:
-            cylinder = RANSACcylinderFitting3(xyz, N)
+            cylinder = RANSACcylinderFitting3(xyz, iterations, sample)
             if cylinder == None: cylinder = None#other_cylinder_fit(xyz)
                 
     except:
