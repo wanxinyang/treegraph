@@ -8,14 +8,14 @@ from treegraph.common import *
 
 def save_centres(centres, path, verbose=False):
     
-    drop = [c for c, d in zip(self.centres.columns, self.centres.dtypes) if d in ['object']]
-    ply_io.write_ply(path, self.centres.drop(columns=drop).rename(columns={'cx':'x', 'cy':'y', 'cz':'z'}))
+    drop = [c for c, d in zip(centres.columns, centres.dtypes) if d in ['object']]
+    ply_io.write_ply(path, centres.drop(columns=drop).rename(columns={'cx':'x', 'cy':'y', 'cz':'z'}))
     if verbose: print('skeleton points saved to:', path)
     
 def save_pc(pc, path, downsample=False, verbose=False):
     
-    drop = [c for c, d in zip(self.pc.columns, self.pc.dtypes) if d in ['object']]
-    ply_io.write_ply(path, self.pc.drop(columns=drop).loc[self.pc.downsample if downsample else self.pc.index])
+    drop = [c for c, d in zip(pc.columns, pc.dtypes) if d in ['object']]
+    ply_io.write_ply(path, pc.drop(columns=drop).loc[pc.downsample if downsample else pc.index])
     if verbose: print('point cloud saved to:', path)
 
     
