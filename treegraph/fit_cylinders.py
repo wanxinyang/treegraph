@@ -9,7 +9,12 @@ from tqdm.autonotebook import tqdm
 from treegraph.third_party.available_cpu_count import available_cpu_count
 from pandarallel import pandarallel
 
-def run(pc, centres, min_pts=10, ransac_iterations=50, verbose=False):
+def run(pc, centres, 
+        min_pts=10, 
+        ransac_iterations=50, 
+        sample=100,
+        nb_workers=available_cpu_count(),
+        verbose=False):
 
 #     if 'sf_radius' in self.centres.columns:
 #         del self.centres['sf_radius']
@@ -20,9 +25,12 @@ def run(pc, centres, min_pts=10, ransac_iterations=50, verbose=False):
     node_id = centres[centres.n_points > min_pts].sort_values('n_points').node_id.values
 
     groupby_ = pc.loc[pc.node_id.isin(node_id)].groupby('node_id')
-    pandarallel.initialize(progress_bar=verbose, nb_workers=min(len(centres), available_cpu_count()))
+    pandarallel.initialize(progress_bar=verbose, 
+                           use_memory_fs=True,
+                           nb_workers=min(len(centres), nb_workers))
     
-    cyl = groupby_.parallel_apply(RANSAC_helper, ransac_iterations, 100)
+    cyl = groupby_.parallel_apply(RANSAC_helper, ransac_iterations, sample)
+    return cyl
 #     cyl = groupby_.apply(RANSAC_helper)
     cyl.columns=['sf_radius', 'centre']
     cyl.reset_index(inplace=True)
