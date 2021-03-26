@@ -115,8 +115,6 @@ def RANSACcylinderFitting3(xyz, iterations, N):
             # if 10% of potential inliers are actual inliers
             if len(alsoInliers) > len(possibleInliers) * .1:
                 
-                print('here')
-
                 allInliers = maybeInliers.append(alsoInliers)
                 radius, centre = other_cylinder_fit2(allInliers)
                 
@@ -168,8 +166,8 @@ def RANSAC_helper(xyz, ransac_iterations, sample):
             cylinder = NotRANSAC(xyz)
         else:
             cylinder = RANSACcylinderFitting3(xyz, ransac_iterations, sample)
-            if cylinder == None: # again not sure if this is necessary...
-                cylinder = [np.nan, xyz[['x', 'y', 'z']].mean(axis=0)]
+#             if cylinder == None: # again not sure if this is necessary...
+#                 cylinder = [np.nan, xyz[['x', 'y', 'z']].mean(axis=0)]
                 
     except:
         cylinder = [np.nan, xyz[['x', 'y', 'z']].mean(axis=0)]
