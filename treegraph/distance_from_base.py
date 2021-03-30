@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import os
 
 from treegraph.third_party import shortpath as p2g
 from treegraph import downsample
@@ -103,7 +104,7 @@ def run(pc, base_location=None, new_base_coords=None,\
     else:
         pc.loc[node_ids, 'distance_from_base'] = np.array(list(distance))
     
-    return pc[columns]
+    return pc[columns], G, path_dict
 
 
 def base_fitting(self, base_slice_length=2.0, \
