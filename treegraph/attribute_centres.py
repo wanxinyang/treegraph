@@ -2,11 +2,16 @@ import time
 import pandas as pd
 import numpy as np
 
+from tqdm.autonotebook import tqdm
+
 from treegraph.build_skeleton import generate_distance_graph
 
 def attribute_centres(centres, path_ids, verbose=False, branch_hierarchy=False):
     
     T = time.time()
+    
+    # remove nodes that are not graphed - prob outlying clusters 
+    centres = centres.loc[centres.node_id.isin(path_ids.keys())]
 
     # if node is a tip
     centres.loc[:, 'is_tip'] = False
@@ -29,7 +34,7 @@ def attribute_centres(centres, path_ids, verbose=False, branch_hierarchy=False):
             
     if verbose: print('\tbranch lengths:', time.time() - T)
             
-    centres.sort_values('slice_id', inplace=True)
+    centres.sort_values(['slice_id', 'distance_from_base'], inplace=True)
     centres.loc[:, 'nbranch'] = -1
     centres.loc[:, 'ncyl'] = -1
 
@@ -81,7 +86,7 @@ def attribute_centres(centres, path_ids, verbose=False, branch_hierarchy=False):
     if verbose: print('\tidentify parent:', time.time() - T)
 
     # loop over branches and attribute internode
-    centres.sort_values(['nbranch', 'ncyl'], inplace=True)
+    centres.sort_values(['slice_id', 'distance_from_base'], inplace=True)
     centres.loc[:, 'ninternode'] = -1
     internode_n = 0
 
@@ -95,19 +100,30 @@ def attribute_centres(centres, path_ids, verbose=False, branch_hierarchy=False):
         
         branch_hierarchy = {0:{'all':np.array([0]), 'above':centres.nbranch.unique()[1:]}}
 
-        for b in np.arange(centres.nbranch.max() + 1):
+        for b in np.sort(centres.nbranch.unique()):
             if b == 0: continue
             parent = centres.loc[(centres.nbranch == b) & (centres.ncyl == 0)].parent.values[0]
+#             if b == parent: 
+#                 # need to figure out why some branches are their own parents....
+#                 # think it is because they are isolated 
+#                 nodes = centres.loc[centres.nbranch == b].node_id.values
+#                 centres = centres.loc[~centres.node_id.isin(nodes)]
+#                 pc = pc.loc[~pc.node_id.isin(nodes)]
+#                 print(b)
+#                 continue
             branch_hierarchy[b] = {}
             branch_hierarchy[b]['all'] = np.hstack([[b], branch_hierarchy[parent]['all']])
 
-        for b in np.arange(centres.nbranch.max() + 1):
+        for b in centres.nbranch.unique():
             if b == 0: continue
             ba = set()
             for k, v in branch_hierarchy.items():
                 if b not in list(v['all']): continue
                 ba.update(set(v['all'][v['all'] > b]))
-            if len(ba) > 0: branch_hierarchy[b]['above'] = list(ba)
+            if len(ba) > 0: 
+                branch_hierarchy[b]['above'] = list(ba)
+            else:
+                branch_hierarchy[b]['above'] = []
 
         return centres, branch_hierarchy
     
@@ -128,7 +144,10 @@ def distance_from_tip(self, centres, pc, vlength=.005):
     snb_nbranch = single_node_branch.loc[single_node_branch == 1].index
     centres.loc[centres.nbranch.isin(snb_nbranch), 'nbranch'] = centres.loc[centres.nbranch.isin(snb_nbranch), 'parent']
     
-    for nbranch in np.sort(centres.nbranch.unique()):
+    if self.verbose: print('reattributing branches...')
+    for nbranch in tqdm(np.sort(centres.nbranch.unique()), 
+                        total=len(centres.nbranch.unique()), 
+                        disable=False if self.verbose else True):
         
         # nodes to identify points
         branch_nodes = centres.loc[centres.nbranch == nbranch].node_id.values
@@ -140,10 +159,12 @@ def distance_from_tip(self, centres, pc, vlength=.005):
         # correct for some errors in distance_from_base
         if len(branch_pc) > 1000:
             dfb_min = branch_pc['distance_from_base'].min()
-            branch_pc = generate_distance_graph(branch_pc, 
-                                                base_location=branch_pc.distance_from_base.idxmin(),
-                                                downsample_cloud=False if len(branch_pc) <= 100 else vlength,
-                                                knn=50)
+            try:
+                branch_pc = generate_distance_graph(branch_pc, 
+                                                    base_location=branch_pc.distance_from_base.idxmin(),
+                                                    downsample_cloud=vlength,
+                                                    knn=100)
+            except: pass
             branch_pc.distance_from_base += dfb_min
             
         if nbranch == 0:
@@ -155,6 +176,14 @@ def distance_from_tip(self, centres, pc, vlength=.005):
 
         # regenerating slice_ids
         branch_pc.loc[:, 'slice_id'] = np.digitize(branch_pc.modified_distance, self.f.cumsum())
+        
+        # check new clusters are not smaller than min_pts, if they
+        # are cluster them with the next one
+        N = branch_pc.groupby('slice_id').x.count()
+        slice_plus = {n:0 if N[n] > self.min_pts else -1 if n == N.max() else 1 for n in N.index}
+        branch_pc.slice_id += branch_pc.slice_id.map(slice_plus)
+        
+        # normalise slice_id to 0
         branch_pc.slice_id = branch_pc.slice_id - branch_pc.slice_id.min()
 
         # reattribute centres centres
@@ -180,7 +209,7 @@ def distance_from_tip(self, centres, pc, vlength=.005):
         # if branch furcates identify new node_id and slice_id
         for _, row in centres.loc[(centres.nbranch == nbranch) & (centres.n_furcation > 0)].iterrows():
             
-            new_centres.loc[:, 'dist2fur'] = np.linalg.norm(row[['cx', 'cy', 'cz']] - 
+            new_centres.loc[:, 'dist2fur'] = np.linalg.norm(row[['cx', 'cy', 'cz']].astype(float) - 
                                                             new_centres[['cx', 'cy', 'cz']],
                                                             axis=1)
             PC_nodes.loc[PC_nodes.parent_node == row.node_id, 'new_parent'] = new_centres.loc[new_centres.dist2fur.idxmin()].node_id

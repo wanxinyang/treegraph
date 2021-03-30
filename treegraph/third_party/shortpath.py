@@ -107,7 +107,7 @@ def array_to_graph(arr, base_id, kpairs, knn, nbrs_threshold,
         
         # Increasing a single step count.
         current_step += 1
-
+        
         # If current_idx is a list containing several indices.
         if len(current_idx) > 0:
 

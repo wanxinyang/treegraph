@@ -1,10 +1,14 @@
 import pandas as pd
 import numpy as np
+import random
+import struct
 from sklearn.cluster import DBSCAN
 from tqdm.autonotebook import tqdm
 
 from treegraph.third_party import shortpath as p2g
 from treegraph.downsample import *
+
+from pandarallel import pandarallel
 
 def dbscan_(voxel, eps):
 
@@ -75,43 +79,65 @@ def calculate_voxel_length(self, exponent=2, minbin=.005, maxbin=.02):
 
     # generate unique id "slice_id" for bins
     self.pc.loc[:, 'slice_id'] = np.digitize(self.pc.distance_from_base, self.f.cumsum())
+
+
+def find_centre(dslice, self, eps):
     
+    if len(dslice) < self.min_pts: return []
     
-def skeleton(self, eps=None):
+    centres = pd.DataFrame()    
+    s = dslice.slice_id.unique()[0]
 
-    self.centres = pd.DataFrame(columns=['slice_id', 'centre_id', 'cx', 'cy', 'cz', 'distance_from_base'])
+    # separate different slice components e.g. different branches
+    dbscan = dbscan_(dslice[['x', 'y', 'z']], eps=eps)
+    dslice.loc[:, 'centre_id'] = dbscan.labels_
 
-    if self.verbose: print('identifying skeleton points...')
-    for i, s in tqdm(enumerate(np.sort(self.pc.slice_id.unique())), 
-                     total=len(self.pc.slice_id.unique()),
-                     disable=False if self.verbose else True):
+    for c in np.unique(dbscan.labels_):
 
-        # separate different slice components e.g. different branches
-        dslice = self.pc.loc[self.pc.slice_id == s][['x', 'y', 'z']]
-        if len(dslice) < self.min_pts: continue
-#         eps_ = self.bin_width[s] / 2.
-        dbscan = dbscan_(dslice, eps=eps)
-        self.pc.loc[dslice.index, 'centre_id'] = dbscan.labels_
-        centre_id_max =  dbscan.labels_.max() + 1 # +1 required as dbscan label start at zero
+        # working on each separate branch
+        nvoxel = dslice.loc[dslice.centre_id == c]
+        if len(nvoxel.index) < self.min_pts: 
+            dslice = dslice.loc[~dslice.index.isin(nvoxel.index)]
+            continue # required so centre is added after points are deleted
+        centre_coords = nvoxel[['x', 'y', 'z']].median()
 
-        for c in np.unique(dbscan.labels_):
+        centres = centres.append(pd.Series({'slice_id':int(s), 
+                                            'centre_id':int(c), 
+                                            'cx':centre_coords.x, 
+                                            'cy':centre_coords.y, 
+                                            'cz':centre_coords.z, 
+                                            'distance_from_base':nvoxel.distance_from_base.mean(),
+                                            'n_points':len(nvoxel),
+                                            'idx':struct.pack('ii', int(s), int(c))}),
+                                           ignore_index=True)
+        
+        dslice.loc[(dslice.slice_id == s) & 
+                   (dslice.centre_id == c), 'idx'] = struct.pack('ii', int(s), int(c))
 
-            # working on each separate branch
-            nvoxel = self.pc.loc[dslice.index].loc[self.pc.centre_id == c].copy()
-            if len(nvoxel.index) < self.min_pts: continue 
-            centre_coords = nvoxel[['x', 'y', 'z']].median()
-
-            self.centres = self.centres.append(pd.Series({'slice_id':int(s), 
-                                                          'centre_id':int(c), 
-                                                          'cx':centre_coords.x, 
-                                                          'cy':centre_coords.y, 
-                                                          'cz':centre_coords.z, 
-                                                          'distance_from_base':nvoxel.distance_from_base.mean(),
-                                                          'n_points':len(nvoxel)}),
-                                               ignore_index=True)
-
-            idx = self.centres.index.values[-1]
-            self.pc.loc[(self.pc.slice_id == s) & 
-                        (self.pc.centre_id == c), 'node_id'] = idx
+    if isinstance(centres, pd.DataFrame):
+        return [centres, dslice] 
     
-    self.centres.loc[:, 'node_id'] = self.centres.index
+def skeleton(self, eps):
+
+    # run pandarallel on groups of points
+    groupby = self.pc.groupby('slice_id')
+    pandarallel.initialize(nb_workers=min(24, len(groupby)), progress_bar=False)
+    sent_back = groupby.parallel_apply(find_centre, self, eps).values
+
+    # create and append clusters and filtered pc
+    self.centres = pd.DataFrame()
+    self.pc = pd.DataFrame()
+    for x in sent_back:
+        self.centres = self.centres.append(x[0])
+        self.pc = self.pc.append(x[1])
+
+    # reset index as appended df have common values
+    self.centres.reset_index(inplace=True)
+    self.pc.reset_index(inplace=True)
+
+    # convert binary cluster reference to int
+    MAP = {v:i for i, v in enumerate(self.centres.idx.unique())}
+    if 'level_0' in self.pc.columns: self.pc = self.pc.drop(columns='level_0')
+    if 'index' in self.pc.columns: self.pc = self.pc.drop(columns='index')
+    self.pc.loc[:, 'node_id'] = self.pc.idx.map(MAP)
+    self.centres.loc[:, 'node_id'] = self.centres.idx.map(MAP)
