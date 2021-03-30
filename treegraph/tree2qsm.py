@@ -3,7 +3,6 @@ import sys
 import os
 import argparse
 
-from treegraph.common import *
 from treegraph.IO import *
 from treegraph.downsample import *
 from treegraph.build_skeleton import *

@@ -2,117 +2,146 @@ import time
 import pandas as pd
 import numpy as np
 
-from treegraph.build_skeleton import generate_distance_graph
+from tqdm.autonotebook import trange
 
-def attribute_centres(centres, path_ids, verbose=False, branch_hierarchy=False):
-    
-    T = time.time()
+import treegraph.distance_from_base 
 
-    # if node is a tip
-    centres.loc[:, 'is_tip'] = False
-    unique_nodes = np.unique([v for p in path_ids.values() for v in p], return_counts=True)
-    centres.loc[centres.node_id.isin(unique_nodes[0][unique_nodes[1] == 1]), 'is_tip'] = True
+def run(centres, path_ids, verbose=False, branch_hierarchy=False):
+    
+#     T = time.time()
+    with trange(6 if branch_hierarchy else 5, 
+                  disable=False if verbose else True,
+                  desc='steps') as pbar:
+    
+        # remove nodes that are not graphed - prob outlying clusters 
+        centres = centres.loc[centres.node_id.isin(path_ids.keys())]
 
-    if verbose: print('\tlocatate tips:', time.time() - T)
-    
-    # calculate branch lengths and numbers
-    tip_paths = pd.DataFrame(index=centres[centres.is_tip].node_id.values, 
-                             columns=['tip2base', 'length', 'nbranch'])
-    
-    for k, v in path_ids.items():
-        
-        v = v[::-1]
-        if v[0] in centres[centres.is_tip].node_id.values:
+        # if node is a tip
+        centres.loc[:, 'is_tip'] = False
+        unique_nodes = np.unique([v for p in path_ids.values() for v in p], return_counts=True)
+        centres.loc[centres.node_id.isin(unique_nodes[0][unique_nodes[1] == 1]), 'is_tip'] = True
+
+        pbar.set_description("identified tips", refresh=True)
+        pbar.update(1) # update progress bar
+
+        # calculate branch lengths and numbers
+        tip_paths = pd.DataFrame(index=centres[centres.is_tip].node_id.values, 
+                                 columns=['tip2base', 'length', 'nbranch'])
+
+        for k, v in path_ids.items():
+
+            v = v[::-1]
+            if v[0] in centres[centres.is_tip].node_id.values:
+                c1 = centres.set_index('node_id').loc[v[:-1]][['cx', 'cy', 'cz']].values
+                c2 = centres.set_index('node_id').loc[v[1:]][['cx', 'cy', 'cz']].values
+                tip_paths.loc[tip_paths.index == v[0], 'tip2base'] = np.linalg.norm(c1 - c2, axis=1).sum()
+
+        pbar.set_description("calculated tip to base lengths", refresh=True)
+        pbar.update(1)
+
+        centres.sort_values(['slice_id', 'distance_from_base'], inplace=True)
+        centres.loc[:, 'nbranch'] = -1
+        centres.loc[:, 'ncyl'] = -1
+
+        for i, row in enumerate(tip_paths.sort_values('tip2base', ascending=False).itertuples()):
+
+            tip_paths.loc[row.Index, 'nbranch'] = i 
+            cyls = path_ids[row.Index]
+            centres.loc[(centres.node_id.isin(cyls)) & 
+                             (centres.nbranch == -1), 'nbranch'] = i
+            centres.loc[centres.nbranch == i, 'ncyl'] = np.arange(len(centres[centres.nbranch == i]))
+            v = centres.loc[centres.nbranch == i].sort_values('ncyl').node_id
             c1 = centres.set_index('node_id').loc[v[:-1]][['cx', 'cy', 'cz']].values
             c2 = centres.set_index('node_id').loc[v[1:]][['cx', 'cy', 'cz']].values
-            tip_paths.loc[tip_paths.index == v[0], 'tip2base'] = np.linalg.norm(c1 - c2, axis=1).sum()
-            
-    if verbose: print('\tbranch lengths:', time.time() - T)
-            
-    centres.sort_values('slice_id', inplace=True)
-    centres.loc[:, 'nbranch'] = -1
-    centres.loc[:, 'ncyl'] = -1
+            tip_paths.loc[row.Index, 'length'] = np.linalg.norm(c1 - c2, axis=1).sum()
 
-    for i, row in enumerate(tip_paths.sort_values('tip2base', ascending=False).itertuples()):
-        
-        tip_paths.loc[row.Index, 'nbranch'] = i 
-        cyls = path_ids[row.Index]
-        centres.loc[(centres.node_id.isin(cyls)) & 
-                         (centres.nbranch == -1), 'nbranch'] = i
-        centres.loc[centres.nbranch == i, 'ncyl'] = np.arange(len(centres[centres.nbranch == i]))
-        v = centres.loc[centres.nbranch == i].sort_values('ncyl').node_id
-        c1 = centres.set_index('node_id').loc[v[:-1]][['cx', 'cy', 'cz']].values
-        c2 = centres.set_index('node_id').loc[v[1:]][['cx', 'cy', 'cz']].values
-        tip_paths.loc[row.Index, 'length'] = np.linalg.norm(c1 - c2, axis=1).sum()
-    
-    # reattribute branch numbers starting with the longest
-    new_branch_nums = {bn:i for i, bn in enumerate(tip_paths.sort_values('length', ascending=False).nbranch)}
-    tip_paths.loc[:, 'nbranch'] = tip_paths.nbranch.map(new_branch_nums)
-    centres.loc[:, 'nbranch'] = centres.nbranch.map(new_branch_nums)
-        
-    if verbose: print('\tbranch and cyl nums:', time.time() - T)
+        # reattribute branch numbers starting with the longest
+        new_branch_nums = {bn:i for i, bn in enumerate(tip_paths.sort_values('length', ascending=False).nbranch)}
+        tip_paths.loc[:, 'nbranch'] = tip_paths.nbranch.map(new_branch_nums)
+        centres.loc[:, 'nbranch'] = centres.nbranch.map(new_branch_nums)
 
-    centres.loc[:, 'n_furcation'] = 0        
-    centres.loc[:, 'parent'] = -1  
-    centres.loc[:, 'parent_node'] = np.nan
-    
-    # loop over branch base and identify parent
-    for nbranch in centres.nbranch.unique():
+        pbar.set_description("idnetified individual branches", refresh=True)
+        pbar.update(1)
         
-        if nbranch == 0: continue # main branch does not furcate
-        furcation_node = -1
-        branch_base_idx = centres.loc[centres.nbranch == nbranch].ncyl.idxmin()
-        branch_base_idx = centres.loc[branch_base_idx].node_id
+        centres.loc[:, 'n_furcation'] = 0        
+        centres.loc[:, 'parent'] = -1  
+        centres.loc[:, 'parent_node'] = np.nan
+
+        # loop over branch base and identify parent
+        for nbranch in centres.nbranch.unique():
+
+            if nbranch == 0: continue # main branch does not furcate
+            furcation_node = -1
+            branch_base_idx = centres.loc[centres.nbranch == nbranch].ncyl.idxmin()
+            branch_base_idx = centres.loc[branch_base_idx].node_id
+
+            for path in path_ids.values():    
+                if path[-1] == branch_base_idx:
+                    if len(path) > 1:
+                        furcation_node = path[-2]
+                    else:
+                        furcation_node = path[-1]
+                    centres.loc[centres.node_id == furcation_node, 'n_furcation'] += 1
+                    break
+
+            if furcation_node != -1:
+                parent = centres.loc[centres.node_id == furcation_node].nbranch.values[0]
+                centres.loc[(centres.nbranch == nbranch), 'parent'] = parent
+                centres.loc[(centres.nbranch == nbranch) & (centres.ncyl == 0), 'parent_node'] = furcation_node
+
+        pbar.set_description('attributed nodes and identified parents', refresh=True)
+        pbar.update(1)
+
+        # loop over branches and attribute internode
+        centres.sort_values(['slice_id', 'distance_from_base'], inplace=True)
+        centres.loc[:, 'ninternode'] = -1
+        internode_n = 0
+
+        for ix, row in centres.iterrows():
+            centres.loc[centres.node_id == row.node_id, 'ninternode'] = internode_n
+            if row.n_furcation > 0 or row.is_tip: internode_n += 1
+
+        pbar.set_description('attributed internodes', refresh=True)
+        pbar.update(1)
         
-        for path in path_ids.values():    
-            if path[-1] == branch_base_idx:
-                if len(path) > 1:
-                    furcation_node = path[-2]
+        centres = centres.reset_index(drop=True)
+        
+        if branch_hierarchy:
+
+            branch_hierarchy = {0:{'all':np.array([0]), 'above':centres.nbranch.unique()[1:]}}
+
+            for b in np.sort(centres.nbranch.unique()):
+                if b == 0: continue
+                parent = centres.loc[(centres.nbranch == b) & (centres.ncyl == 0)].parent.values[0]
+    #             if b == parent: 
+    #                 # need to figure out why some branches are their own parents....
+    #                 # think it is because they are isolated 
+    #                 nodes = centres.loc[centres.nbranch == b].node_id.values
+    #                 centres = centres.loc[~centres.node_id.isin(nodes)]
+    #                 pc = pc.loc[~pc.node_id.isin(nodes)]
+    #                 print(b)
+    #                 continue
+                branch_hierarchy[b] = {}
+                branch_hierarchy[b]['all'] = np.hstack([[b], branch_hierarchy[parent]['all']])
+
+            for b in centres.nbranch.unique():
+                if b == 0: continue
+                ba = set()
+                for k, v in branch_hierarchy.items():
+                    if b not in list(v['all']): continue
+                    ba.update(set(v['all'][v['all'] > b]))
+                if len(ba) > 0: 
+                    branch_hierarchy[b]['above'] = list(ba)
                 else:
-                    furcation_node = path[-1]
-                centres.loc[centres.node_id == furcation_node, 'n_furcation'] += 1
-                break
-        
-        if furcation_node != -1:
-            parent = centres.loc[centres.node_id == furcation_node].nbranch.values[0]
-            centres.loc[(centres.nbranch == nbranch), 'parent'] = parent
-            centres.loc[(centres.nbranch == nbranch) & (centres.ncyl == 0), 'parent_node'] = furcation_node
-        
-    if verbose: print('\tidentify parent:', time.time() - T)
-
-    # loop over branches and attribute internode
-    centres.sort_values(['nbranch', 'ncyl'], inplace=True)
-    centres.loc[:, 'ninternode'] = -1
-    internode_n = 0
-
-    for ix, row in centres.iterrows():
-        centres.loc[centres.node_id == row.node_id, 'ninternode'] = internode_n
-        if row.n_furcation > 0 or row.is_tip: internode_n += 1
+                    branch_hierarchy[b]['above'] = []
             
-    if verbose: print('\tidentify internode:', time.time() - T)
-    
-    if branch_hierarchy:
-        
-        branch_hierarchy = {0:{'all':np.array([0]), 'above':centres.nbranch.unique()[1:]}}
+            pbar.set_description('created branch hierarchy', refresh=True)
+            pbar.update(1)
 
-        for b in np.arange(centres.nbranch.max() + 1):
-            if b == 0: continue
-            parent = centres.loc[(centres.nbranch == b) & (centres.ncyl == 0)].parent.values[0]
-            branch_hierarchy[b] = {}
-            branch_hierarchy[b]['all'] = np.hstack([[b], branch_hierarchy[parent]['all']])
+            return centres, branch_hierarchy
 
-        for b in np.arange(centres.nbranch.max() + 1):
-            if b == 0: continue
-            ba = set()
-            for k, v in branch_hierarchy.items():
-                if b not in list(v['all']): continue
-                ba.update(set(v['all'][v['all'] > b]))
-            if len(ba) > 0: branch_hierarchy[b]['above'] = list(ba)
-
-        return centres, branch_hierarchy
-    
-    else:   
-        return centres
+        else:   
+            return centres
     
 def distance_from_tip(self, centres, pc, vlength=.005):
 
@@ -128,7 +157,10 @@ def distance_from_tip(self, centres, pc, vlength=.005):
     snb_nbranch = single_node_branch.loc[single_node_branch == 1].index
     centres.loc[centres.nbranch.isin(snb_nbranch), 'nbranch'] = centres.loc[centres.nbranch.isin(snb_nbranch), 'parent']
     
-    for nbranch in np.sort(centres.nbranch.unique()):
+    if self.verbose: print('reattributing branches...')
+    for nbranch in tqdm(np.sort(centres.nbranch.unique()), 
+                        total=len(centres.nbranch.unique()), 
+                        disable=False if self.verbose else True):
         
         # nodes to identify points
         branch_nodes = centres.loc[centres.nbranch == nbranch].node_id.values
@@ -140,10 +172,12 @@ def distance_from_tip(self, centres, pc, vlength=.005):
         # correct for some errors in distance_from_base
         if len(branch_pc) > 1000:
             dfb_min = branch_pc['distance_from_base'].min()
-            branch_pc = generate_distance_graph(branch_pc, 
-                                                base_location=branch_pc.distance_from_base.idxmin(),
-                                                downsample_cloud=False if len(branch_pc) <= 100 else vlength,
-                                                knn=50)
+            try:
+                branch_pc = distance_from_base.run(branch_pc, 
+                                                   base_location=branch_pc.distance_from_base.idxmin(),
+                                                   downsample_cloud=vlength,
+                                                   knn=100)
+            except: pass
             branch_pc.distance_from_base += dfb_min
             
         if nbranch == 0:
@@ -155,6 +189,14 @@ def distance_from_tip(self, centres, pc, vlength=.005):
 
         # regenerating slice_ids
         branch_pc.loc[:, 'slice_id'] = np.digitize(branch_pc.modified_distance, self.f.cumsum())
+        
+        # check new clusters are not smaller than min_pts, if they
+        # are cluster them with the next one
+        N = branch_pc.groupby('slice_id').x.count()
+        slice_plus = {n:0 if N[n] > self.min_pts else -1 if n == N.max() else 1 for n in N.index}
+        branch_pc.slice_id += branch_pc.slice_id.map(slice_plus)
+        
+        # normalise slice_id to 0
         branch_pc.slice_id = branch_pc.slice_id - branch_pc.slice_id.min()
 
         # reattribute centres centres
@@ -180,7 +222,7 @@ def distance_from_tip(self, centres, pc, vlength=.005):
         # if branch furcates identify new node_id and slice_id
         for _, row in centres.loc[(centres.nbranch == nbranch) & (centres.n_furcation > 0)].iterrows():
             
-            new_centres.loc[:, 'dist2fur'] = np.linalg.norm(row[['cx', 'cy', 'cz']] - 
+            new_centres.loc[:, 'dist2fur'] = np.linalg.norm(row[['cx', 'cy', 'cz']].astype(float) - 
                                                             new_centres[['cx', 'cy', 'cz']],
                                                             axis=1)
             PC_nodes.loc[PC_nodes.parent_node == row.node_id, 'new_parent'] = new_centres.loc[new_centres.dist2fur.idxmin()].node_id

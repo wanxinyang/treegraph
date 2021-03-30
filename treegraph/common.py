@@ -13,6 +13,7 @@ def node_angle_f(a, b, c):
 
     return angle_pair(bc.T, ba)#[0][0]
 
+
 def nn(arr, N):
     
     nbrs = NearestNeighbors(n_neighbors=N+1, algorithm='kd_tree').fit(arr)
@@ -20,6 +21,22 @@ def nn(arr, N):
     
     return distances[:, 1]
 
+
+def update_slice_id(centres, branch_hierarchy, node_id, X):
+    
+    node = centres.loc[centres.node_id == node_id]
+    nbranch = node.nbranch.values[0]
+    ncyl = node.ncyl.values[0]
+    
+    # update slices of same branch above ncyls
+    centres.loc[(centres.nbranch == nbranch) & (centres.ncyl >= ncyl), 'slice_id'] += X
+    
+    # update branches above nbranch
+    centres.loc[centres.nbranch.isin(branch_hierarchy[nbranch]['above']), 'slice_id'] += X
+    
+    return centres, branch_hierarchy
+
+    
 class treegraph:
     
     def __init__(self, pc, slice_interval=.05, min_pts=10, base_location=None, verbose=False):
