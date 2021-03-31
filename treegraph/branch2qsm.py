@@ -69,7 +69,7 @@ output_path = {output}"
 
     ### build initial graph ###
     base_slice, fitted_centre, new_base_coords = distance_from_base.base_fitting(self, \
-        base_slice_length=4.0, pc_path=path, output_path='../results/')
+        base_slice_length=4.0, pc_path=path, output_path=output)
     
     self.pc, G, self.path_dict = distance_from_base.run(self.pc, self.base_location, \
         new_base_coords, low_slice_length=.3, cluster_size=self.cluster_size)
@@ -91,10 +91,6 @@ output_path = {output}"
     
     # identify skeleton nodes
     self.centres = build_skeleton.run(self, verbose=True)
-
-    # adjust the coords of the 1st slice centre with the coords of new_base_node
-    idx = self.centres[self.centres.slice_id == 0].index.values[0]
-    self.centres.loc[idx, ('cx','cy','cz','distance_from_base')] = [new_base_coords[0], new_base_coords[1], new_base_coords[2], 0]
 
     # build skeleton graph
     G_skeleton, self.path_distance, self.path_ids = build_graph.run(self.centres, verbose=self.verbose)
@@ -125,8 +121,11 @@ output_path = {output}"
                                                   verbose=True)
     G_skeleton_reslice, self.path_distance, self.path_ids = build_graph.run(self.centres, verbose=self.verbose)
     self.centres, self.branch_hierarchy = attribute_centres.run(self.centres, self.path_ids, 
-                                                                branch_hierarchy=True, verbose=True)
-    
+                                                                branch_hierarchy=True, verbose=True)  
+    # adjust the coords of the 1st slice centre with the coords of new_base_node
+    idx = self.centres[self.centres.slice_id == 0].index.values[0]
+    self.centres.loc[idx, ('cx','cy','cz','distance_from_base')] = [new_base_coords[0], new_base_coords[1], new_base_coords[2], 0]
+
 
     ### rebuild furcation nodes ###
     self.centres, self.path_ids, self.branch_hierarchy = split_furcation.run(self.pc.copy(), 
@@ -238,7 +237,7 @@ output_path = {output}"
     e_dt = datetime.now()
     t = (e_dt - dt)
     with open(o_f+'.txt', 'a') as f:
-        f.write(f'\n\n\nScript ends.\nTotal running time: {t}')
+        f.write(f'\n\nProgramme successfully completed.\nTotal running time: {t}')
 
 
 if __name__ == "__main__":
