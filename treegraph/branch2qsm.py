@@ -77,7 +77,7 @@ def run(path, base_idx=None, attribute='nbranch', radius='m_radius', verbose=Fal
     # generate cylinder model and export
     generate_cylinder_model.run(self, radius_value='m_radius')
     IO.to_ply(self.cyls, os.path.splitext(os.path.split(path)[1])[0] + '.cyls.ply', verbose=True)
-    IO.qsm2json(self, os.path.splitext(os.path.split(path)[1])[0] + '.json')
+    IO.qsm2json(self, os.path.splitext(os.path.split(path)[1])[0] + '.json', name=os.path.splitext(os.path.split(path)[1])[0])
  
 if __name__ == "__main__":
     
