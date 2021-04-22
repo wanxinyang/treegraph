@@ -141,6 +141,10 @@ def RANSACcylinderFitting3(xyz, iterations, N):
                     bestErr = error.mean()
     except:
         bestFit = [np.nan, xyz[['x', 'y', 'z']].mean(axis=0).vales]
+
+    if bestFit == None: 
+        # usually caused by low number of ransac iterations
+        bestFit = [np.nan, xyz[['x', 'y', 'z']].mean(axis=0)]
         
     return bestFit
 
