@@ -33,6 +33,7 @@ def qsm2json(self, path, name=None):
     whole_branch['mean_tip_diameter'] = self.cyls[self.cyls.is_tip].radius.mean()
     whole_branch['sd_tip_diameter'] = self.cyls[self.cyls.is_tip].radius.std()
     whole_branch['N_nodes'] = len(self.centres[self.centres.n_furcation > 0])
+    whole_branch['path_length'] = (self.centres.loc[self.centres.is_tip].distance_from_base / self.centres.loc[self.centres.is_tip].distance_from_base.max()).mean()
     whole_branch['N_furcations'] = self.centres.n_furcation.sum()
     if len(self.centres.loc[self.centres.is_tip]) > 1:
         whole_branch['dist_between_tips'] = nn(self.centres.loc[self.centres.is_tip][['cx', 'cy', 'cz']].values, N=1).mean()
@@ -123,5 +124,9 @@ def read_json(path, pretty_printing=False,
         print('tips:\t\t', '{:.0f}'.format(tree.loc[0]['N_terminal_nodes']))
         print('mean tip width:\t', '{:.3f} m'.format(tree.loc[0]['mean_tip_diameter']))
         print('mean distance\nbetween tips:\t', '{:.3f} m'.format(tree.loc[0]['dist_between_tips']))        
-      
+        try:
+            print('path length:\t\t', '{:.3f} m'.format(tree.loc[0]['path_length']))
+        except:
+            pass     
+ 
     return name, tree, internode, node, cyls, centres   
