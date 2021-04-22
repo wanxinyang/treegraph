@@ -51,6 +51,7 @@ def run(self, radius_value='sf_radius'):
                                       'radius', 'length', 'vol', 'surface_area', 'point_density', 
                                       'nbranch', 'ninternode', 'ncyl', 'is_tip', 'branch_order'])
 
+    if self.verbose: print('generating cylinder model...')
     for ix, row in tqdm(self.centres.sort_values(['nbranch', 'ncyl']).iterrows(), 
                         total=len(self.centres)):
         

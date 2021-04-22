@@ -4,7 +4,7 @@ from tqdm.autonotebook import tqdm
 from scipy import optimize
 
 
-def run(centres, path_ids, tip_radius=.005, Plot=False):
+def run(centres, path_ids, tip_radius=.005, Plot=False, verbose=False):
         
     """
     This function is approximately copied from TreeQSM 2.x
@@ -15,6 +15,7 @@ def run(centres, path_ids, tip_radius=.005, Plot=False):
     
     centres.loc[:, 'm_radius'] = centres.sf_radius.copy()
 
+    if verbose: print('applying taper function...')
     for nbranch in tqdm(centres.nbranch.unique(), 
                         total=len(centres.nbranch.unique())):
         
