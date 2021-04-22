@@ -26,6 +26,8 @@ def read_ply(fp):
             if 'property' in line: 
                 dtype.append(dtype_map[line.split()[1]])
                 prop.append(line.split()[2])
+            if 'element face' in line:
+                raise Exception(fp + ' appears to be a mesh')
             if 'end_header' in line: break
     
         ply.seek(length)
