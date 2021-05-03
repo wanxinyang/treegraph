@@ -1,0 +1,11 @@
+# input arguments example
+branch: ../data/ww_1361w.ply
+attribute: nbranch
+radius: m_radius
+verbose: false
+cluster_size: 0.02
+minpts: 5
+exponent: 1
+minbin: 0.02
+maxbin: 0.25
+output_path: ../results/ww_1361w/
