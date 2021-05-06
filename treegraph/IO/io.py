@@ -1,3 +1,4 @@
+
 import pandas as pd
 import treegraph.third_party.ply_io as ply_io
 import json
@@ -38,6 +39,13 @@ def qsm2json(self, path, name=None):
     if len(self.centres.loc[self.centres.is_tip]) > 1:
         whole_branch['dist_between_tips'] = nn(self.centres.loc[self.centres.is_tip][['cx', 'cy', 'cz']].values, N=1).mean()
     else: whole_branch['dist_between_tips'] = np.nan
+    whole_branch['height'] = round((max(self.cyls.sz) - min(self.cyls.sz)),2)
+    r = self.cyls.loc[np.abs(self.cyls.sz - min(self.cyls.sz) - 1.3) <= 0.2].radius
+    whole_branch['DBH'] = round(np.mean(2*r),2)
+    whole_branch['branch_numbers'] = len(self.cyls.nbranch.unique())
+    whole_branch['slice_segments'] = len(np.unique(self.centres.slice_id))
+    whole_branch['skeleton_points'] = len(np.unique(self.centres.node_id))
+    whole_branch['cyl_numbers'] = len(self.cyls)
     
     ### internode data
     self.cyls.ncyl = self.cyls.ncyl.astype(int) 
@@ -94,35 +102,75 @@ def qsm2json(self, path, name=None):
         nodes.loc[ix, 'length_b'] = self.cyls[self.cyls.p1.isin(branch_path[idx:])].length.sum()
         nodes.loc[ix, 'volums_b'] = self.cyls[self.cyls.p1.isin(branch_path[idx:])].vol.sum()
         nodes.loc[ix, 'child_branch'] = self.centres[self.centres.node_id == row.child_node].nbranch.unique()
-        
+
+    ### input arguments
+    args = {'pc_path': self.path, 'base_idx': self.base_location, 
+    'attribute': self.attribute, 'radius': self.radius, 'verbose': self.verbose, 
+    'cluster_size': self.cluster_size, 'minpts': self.min_pts, 'exponent': self.exponent, 
+    'minbin': self.minbin, 'maxbin': self.maxbin, 'output_path': self.output_path}
+
+    ### graph information
+    G_init = dict(nodes=[[int(n), self.G.nodes[n]] for n in self.G.nodes()], \
+             edges=[[int(u), int(v)] for u,v in self.G.edges()])
+    G_init_cent = self.G_centres
+    
+    G_skel = dict(nodes=[[int(n), self.G_skeleton_splitf.nodes[n]] for n in self.G_skeleton_splitf.nodes()], \
+                      edges=[[int(u), int(v)] for u,v in self.G_skeleton_splitf.edges()])
+    G_skel_cent = self.G_skeleton_splitf_centres
+
+    ### processing time
+    run_time = {'run_time': self.time}
+
     JSON = {'name':name,
             'created':datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             'tree':pd.DataFrame(data=whole_branch, index=[0]).to_json(),
             'internode':internodes.to_json(),
             'node':nodes.to_json(),
             'cyls':self.cyls.to_json(),
-            'centres':self.centres.to_json()}
+            'centres':self.centres.to_json(),
+            'args':args,
+            'G_init':G_init,
+            'G_init_cent':G_init_cent.to_json(),
+            'G_skel':G_skel,
+            'G_skel_cent':G_skel_cent.to_json(),
+            'run_time':run_time}
 
     with open(path, 'w') as fh: fh.write(json.dumps(JSON))
 
         
 def read_json(path, pretty_printing=False, 
-              attributes=['tree', 'internode', 'node', 'cyls', 'centres']):
+              attributes=['tree', 'internode', 'node', 'cyls', 'centres',\
+                          'G_init_cent', 'G_skel_cent']):
     
     branch = json.load(open(path))
     name = branch['name']
-    tree, internode, node, cyls, centres = [pd.read_json(branch[x]) for x in attributes]
+    tree, internode, node, cyls, centres, G_init_cent, G_skel_cent = [pd.read_json(branch[x]) for x in attributes]
+    args = branch['args']
+    G_init = branch['G_init']
+    G_skel = branch['G_skel']
+    run_time = branch['run_time']['run_time']
     
     if pretty_printing:
         print('name:\t\t', name)
         print('date:\t\t', branch['created'])
-        print('length:\t\t', '{:.2f} m'.format(tree.loc[0]['length']))
-        print('volume:\t\t', '{:.4f} m3'.format(tree.loc[0]['vol']))
+        print('height:\t\t', '{:.2f} m'.format(tree.loc[0]['height']))
+        print('DBH:\t\t', '{:.2f} m'.format(tree.loc[0]['DBH']))
+        print('volume:\t\t', '{:.4f} m3 = {:.1f} L'.format(tree.loc[0]['vol'], tree.loc[0]['vol']*1e3))
         print('area:\t\t', '{:.4f} m2'.format(tree.loc[0]['surface_area']))
-        print('nodes:\t\t', '{:.0f}'.format(tree.loc[0]['N_nodes']))
-        print('internodes:\t', '{:.0f}'.format(tree.loc[0]['N_furcations']))
+        print('branch length:\t', '{:.2f} m'.format(tree.loc[0]['length']))
+        print('branch number:\t', '{:.0f}'.format(tree.loc[0]['branch_numbers']))
+        print('furcation+tip\n nodes:\t\t', '{:.0f}'.format(tree.loc[0]['N_nodes']))
+        # print('internodes:\t', '{:.0f}'.format(tree.loc[0]['N_furcations']))
+        print('furcations:\t', '{:.0f}'.format(tree.loc[0]['N_furcations']))
         print('tips:\t\t', '{:.0f}'.format(tree.loc[0]['N_terminal_nodes']))
         print('mean tip width:\t', '{:.3f} m'.format(tree.loc[0]['mean_tip_diameter']))
-        print('mean distance\nbetween tips:\t', '{:.3f} m'.format(tree.loc[0]['dist_between_tips']))        
-      
-    return name, tree, internode, node, cyls, centres   
+        print('mean distance\n between tips:\t', '{:.3f} m'.format(tree.loc[0]['dist_between_tips']))        
+        print('segment slices:\t', '{:.0f}'.format(tree.loc[0]['slice_segments']))
+        print('skeleton points:', '{:.0f}'.format(tree.loc[0]['skeleton_points']))
+        print('cyl numbers:\t', '{:.0f}'.format(tree.loc[0]['cyl_numbers']))
+        m, s = divmod(run_time, 60)
+        h, m = divmod(m, 60)
+        print('running time:\t', '{:.0f}s = {:.0f}h:{:02.0f}m:{:02.0f}s'.format(run_time, h, m, s))
+
+    return name, tree, internode, node, cyls, centres, args, G_init, G_init_cent, G_skel, G_skel_cent, run_time 
+
