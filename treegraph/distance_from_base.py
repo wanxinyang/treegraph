@@ -137,7 +137,7 @@ def base_fitting(self, base_slice_length=2.0, \
         base_slice = self.pc[self.pc.z <= (min(self.pc.z)+base_slice_length)][['x','y','z']]
 
     # save slice pc in a .pcd file
-    fn = os.path.splitext(pc_path)[0].split('/')[2]
+    fn = os.path.splitext(pc_path)[0].split('/')[-1]
     output_f = output_path + fn + f'_base_slice.pcd'
     write_pcd(base_slice, output_f)
     print(f'Trunk base slice pc has been saved in: \n{output_f}')
