@@ -115,7 +115,8 @@ def plot_graph_3d(G, centres, ofn,
         graph with node and edge information
     
     centres: pandas dataframe
-        contain attributes (node_id, cx, cy, cz) of each centre node 
+        for self.pc, it should contain columns: 'x','y','z','distance_from_base'
+        for self.centres, columns: 'cx','cy','cz','node_id','slice_id'  
     
     ofn : string
         output path of saved snapshot figure from mayavi scene
