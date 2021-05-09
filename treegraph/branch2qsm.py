@@ -74,11 +74,9 @@ output_path = {output}"
 
 
     ### build initial graph ###
-    base_slice, fitted_centre, new_base_coords = distance_from_base.base_fitting(self, \
-        base_slice_length=4.0, pc_path=path, output_path=output)
-    
+    base_slice, fit_C, new_base = distance_from_base.base_fitting(self, base_slice_len=2.0)
     self.pc, self.G, self.path_dict = distance_from_base.run(self.pc, self.base_location, \
-        new_base_coords, low_slice_length=.3, cluster_size=self.cluster_size)
+        new_base, low_slice_len=.3, cluster_size=self.cluster_size)
     
     with open(o_f+'.txt', 'a') as f:
         f.write('\n\n----Build graph----')
@@ -129,7 +127,7 @@ output_path = {output}"
                                                                 branch_hierarchy=True, verbose=True)  
     # adjust the coords of the 1st slice centre with the coords of new_base_node
     idx = self.centres[self.centres.slice_id == 0].index.values[0]
-    self.centres.loc[idx, ('cx','cy','cz','distance_from_base')] = [new_base_coords[0], new_base_coords[1], new_base_coords[2], 0]
+    self.centres.loc[idx, ('cx','cy','cz','distance_from_base')] = [new_base[0], new_base[1], new_base[2], 0]
 
     with open(o_f+'.txt', 'a') as f:
         f.write('\n\n----Rebuild skeleton----') 
