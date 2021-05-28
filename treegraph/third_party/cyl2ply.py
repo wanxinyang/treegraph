@@ -203,7 +203,7 @@ def pandas2ply(cyls, field, out):
         eucl = (axis[0]**2+axis[1]**2+axis[2]**2)**0.5
         euclr = (raxis[0]**2+raxis[1]**2+raxis[2]**2)**0.5
 
-#         if euclr == 0: euclr = np.nan # not sure why this happens
+        if euclr == 0: euclr = np.nan# not sure why this happens
         for i in range(3):
             raxis[i] /= euclr
 

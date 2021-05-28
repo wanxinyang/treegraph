@@ -6,20 +6,24 @@ import datetime
 from treegraph.third_party.cyl2ply import pandas2ply
 from treegraph.common import *
 
-def save_centres(self, path):
+def save_centres(centres, path, verbose=False):
     
-    ply_io.write_ply(path, self.centres.rename(columns={'cx':'x', 'cy':'y', 'cz':'z'}))
+    drop = [c for c, d in zip(centres.columns, centres.dtypes) if d in ['object']]
+    ply_io.write_ply(path, centres.drop(columns=drop).rename(columns={'cx':'x', 'cy':'y', 'cz':'z'}))
+    if verbose: print('skeleton points saved to:', path)
+    
+def save_pc(pc, path, downsample=False, verbose=False):
+    
+    drop = [c for c, d in zip(pc.columns, pc.dtypes) if d in ['object']]
+    ply_io.write_ply(path, pc.drop(columns=drop).loc[pc.downsample if downsample else pc.index])
+    if verbose: print('point cloud saved to:', path)
 
     
-def save_pc(self, path, downsample=False):
-    
-    ply_io.write_ply(path, self.pc[self.pc.columns.drop('VX')].loc[self.pc.downsample if downsample else self.pc.index])
-
-    
-def to_ply(self, path, attribute='nbranch'):
+def to_ply(cyls, path, attribute='nbranch', verbose=False):
     
     cols = ['length', 'radius', 'sx', 'sy', 'sz', 'ax', 'ay', 'az', attribute]
-    pandas2ply(self.cyls[cols], attribute, path)
+    pandas2ply(cyls[cols], attribute, path)
+    if verbose: print('cylinders saved to:', path)
 
     
 def qsm2json(self, path, name=None):
@@ -29,6 +33,7 @@ def qsm2json(self, path, name=None):
     whole_branch['mean_tip_diameter'] = self.cyls[self.cyls.is_tip].radius.mean()
     whole_branch['sd_tip_diameter'] = self.cyls[self.cyls.is_tip].radius.std()
     whole_branch['N_nodes'] = len(self.centres[self.centres.n_furcation > 0])
+    whole_branch['path_length'] = (self.centres.loc[self.centres.is_tip].distance_from_base / self.centres.loc[self.centres.is_tip].distance_from_base.max()).mean()
     whole_branch['N_furcations'] = self.centres.n_furcation.sum()
     if len(self.centres.loc[self.centres.is_tip]) > 1:
         whole_branch['dist_between_tips'] = nn(self.centres.loc[self.centres.is_tip][['cx', 'cy', 'cz']].values, N=1).mean()
@@ -100,24 +105,36 @@ def qsm2json(self, path, name=None):
 
     with open(path, 'w') as fh: fh.write(json.dumps(JSON))
 
-        
-def read_json(path, pretty_printing=False, 
-              attributes=['tree', 'internode', 'node', 'cyls', 'centres']):
-    
-    branch = json.load(open(path))
-    name = branch['name']
-    tree, internode, node, cyls, centres = [pd.read_json(branch[x]) for x in attributes]
-    
-    if pretty_printing:
-        print('name:\t\t', name)
-        print('date:\t\t', branch['created'])
-        print('length:\t\t', '{:.2f} m'.format(tree.loc[0]['length']))
-        print('volume:\t\t', '{:.4f} m3'.format(tree.loc[0]['vol']))
-        print('area:\t\t', '{:.4f} m2'.format(tree.loc[0]['surface_area']))
-        print('nodes:\t\t', '{:.0f}'.format(tree.loc[0]['N_nodes']))
-        print('internodes:\t', '{:.0f}'.format(tree.loc[0]['N_furcations']))
-        print('tips:\t\t', '{:.0f}'.format(tree.loc[0]['N_terminal_nodes']))
-        print('mean tip width:\t', '{:.3f} m'.format(tree.loc[0]['mean_tip_diameter']))
-        print('mean distance\nbetween tips:\t', '{:.3f} m'.format(tree.loc[0]['dist_between_tips']))        
-      
-    return name, tree, internode, node, cyls, centres   
+class read_json:
+
+    def __init__ (self, 
+                  path,
+                  pretty_printing=False,
+                  attributes=['tree', 'internode', 'node', 'cyls', 'centres']):
+
+        JSON = json.load(open(path))
+
+        if pretty_printing:
+            
+            tree = pd.read_json(JSON['tree'])
+            
+            print('name:\t\t', JSON['name'])
+            print('date:\t\t', JSON['created'])
+            print('length:\t\t', '{:.2f} m'.format(tree.loc[0]['length']))
+            print('volume:\t\t', '{:.4f} m3'.format(tree.loc[0]['vol']))
+            print('area:\t\t', '{:.4f} m2'.format(tree.loc[0]['surface_area']))
+            print('nodes:\t\t', '{:.0f}'.format(tree.loc[0]['N_nodes']))
+            print('internodes:\t', '{:.0f}'.format(tree.loc[0]['N_furcations']))
+            print('tips:\t\t', '{:.0f}'.format(tree.loc[0]['N_terminal_nodes']))
+            print('mean tip width:\t', '{:.3f} m'.format(tree.loc[0]['mean_tip_diameter']))
+            print('mean distance\nbetween tips:\t', '{:.3f} m'.format(tree.loc[0]['dist_between_tips']))        
+            try:
+                print('path length:\t\t', '{:.3f} m'.format(tree.loc[0]['path_length']))
+            except:
+                pass     
+
+        for att in attributes:
+            try:
+                setattr(self, att, pd.read_json(JSON[att]))
+            except:
+                raise Exception('Field "{}" not in {}'.format(att, path))
