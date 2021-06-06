@@ -1,10 +1,11 @@
 import networkx as nx
 import pandas as pd
 import numpy as np
+import json
 
 from tqdm.autonotebook import tqdm
 
-def run(centres, max_dist=.1, verbose=False):
+def run(centres, verbose=False):
     
     """
     parameters
@@ -20,11 +21,12 @@ def run(centres, max_dist=.1, verbose=False):
     for i, row in tqdm(enumerate(centres.itertuples()), total=len(centres), disable=False if verbose else True):
         
         # first node
-        if row.distance_from_base == centres.distance_from_base.min(): continue
+        # if row.distance_from_base == centres.distance_from_base.min(): continue
 
         n, dist = 3, np.inf
 
-        while n < 10 and dist > max_dist:
+        # while n < 10 and dist > max_dist:
+        while n < 10:
 
             # between required incase of small gap in pc
             nbrs = centres.loc[centres.slice_id.between(row.slice_id - n, row.slice_id - 1)]
@@ -60,4 +62,4 @@ def run(centres, max_dist=.1, verbose=False):
     # required as sometimes pc2graph produces strange results
     centres.distance_from_base = centres.node_id.map(path_distance) 
 
-    return path_distance, path_ids
+    return G_skeleton, path_distance, path_ids
