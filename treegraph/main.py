@@ -9,12 +9,16 @@ class initialise:
     def __init__(self, pc, 
                  downsample=None,
                  min_pts=10, 
+                 exponent=2.0,
                  minbin=.05,
                  maxbin=.5,   
                  cluster_size=.1,
                  base_location=None, 
                  columns=['x', 'y', 'z'],
-                 verbose=False):
+                 verbose=False,
+                 attribute='nbranch',
+                 radius='sf_radius',
+                 output_path='./'):
 
         
         """
@@ -54,9 +58,13 @@ class initialise:
                     
 #         self.slice_interval=slice_interval
         self.min_pts = min_pts
+        self.exponent = exponent
         self.minbin = minbin
         self.maxbin = maxbin
         self.cluster_size=cluster_size
+        self.attribute = attribute
+        self.radius = radius
+        self.output_path = output_path
         
         # add unique point id
         self.pc.loc[:, 'pid'] = np.arange(len(self.pc))
