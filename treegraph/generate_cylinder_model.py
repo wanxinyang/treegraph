@@ -150,4 +150,4 @@ def run(self, radius_value='sf_radius'):
                                      c1[0], c1[1], c1[2], 
                                      direction[0], direction[1], direction[2], 
                                      rad, length, volume, surface_area, row.point_density, 
-                                     row.nbranch, row.ninternode, row.ncyl, row.is_tip, branch_order] 
+                                     row.nbranch, row.ninternode, int(row.ncyl), row.is_tip, branch_order] 
