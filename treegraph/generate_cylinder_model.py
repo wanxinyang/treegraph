@@ -1,4 +1,4 @@
-import math
+
 import numpy as np
 import pandas as pd
 
@@ -135,7 +135,7 @@ def run(self, radius_value='sf_radius'):
                     rad = .05
 
                 volume = np.pi * (rad ** 2) * length
-                surface_area = 2 * np.pi * rad * length + 2 * np.pi * rad**2
+                surface_area = 2 * np.pi * rad * length #+ 2 * np.pi * rad**2
                 
                 if np.isnan(rad): print(k1, k2)
 
