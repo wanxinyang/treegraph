@@ -40,7 +40,7 @@ def run(path, base_idx=None, attribute='nbranch', tip_width=None, verbose=False)
     # build and attribute initial skeleton
     self.pc = distance_from_base.run(self.pc, self.base_location, cluster_size=self.cluster_size)
     self.pc, self.bins = calculate_voxel_length.run(self.pc, exponent=1, maxbin=self.maxbin, minbin=self.minbin)
-    self.pc, self.centres = build_skeleton.run(self.pc, eps=.0025, min_pts=self.min_pts, verbose=True)
+    self.pc, self.centres = build_skeleton.run(self.pc, eps=.005, min_pts=self.min_pts, verbose=True)
     self.path_distance, self.path_ids = build_graph.run(self.centres, max_dist=.1, verbose=self.verbose)
     self.centres, self.branch_hierarchy = attribute_centres.run(self.centres, self.path_ids, 
                                                                 branch_hierarchy=True, verbose=True)
