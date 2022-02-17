@@ -15,7 +15,7 @@ from treegraph import taper
 from treegraph import generate_cylinder_model
 from treegraph import IO
 
-def run(path, base_idx=None, attribute='nbranch', radius='m_radius', verbose=False):
+def run(path, base_idx=None, attribute='nbranch', tip_width=None, verbose=False):
 
     self = treegraph.initialise(path,
                                 base_location=base_idx,
@@ -72,11 +72,11 @@ def run(path, base_idx=None, attribute='nbranch', radius='m_radius', verbose=Fal
     self.centres.loc[:, 'distance_from_base'] = self.centres.node_id.map(self.path_distance)
 
 
-    self.centres = taper.run(self.centres, self.path_ids, tip_radius=.001)
+    self.centres = taper.run(self.centres, self.path_ids, tip_radius=None if tip_width is None else tip_width / 2)
     
     # generate cylinder model and export
     generate_cylinder_model.run(self, radius_value='m_radius')
-    IO.to_ply(self.cyls, os.path.splitext(os.path.split(path)[1])[0] + '.cyls.ply', verbose=True)
+    IO.to_ply(self.cyls, os.path.splitext(os.path.split(path)[1])[0] + '.mesh.ply', verbose=True)
     IO.qsm2json(self, os.path.splitext(os.path.split(path)[1])[0] + '.json', name=os.path.splitext(os.path.split(path)[1])[0])
  
 if __name__ == "__main__":
@@ -85,11 +85,11 @@ if __name__ == "__main__":
     parser.add_argument('--branch', '-b', type=str, required=True, help='path to branch')
     parser.add_argument('--bidx', type=int, default=None, required=False, help='index of base point')
     parser.add_argument('--attribute', '-a', default='nbranch', type=str, help='attribute')
-    parser.add_argument('--radius', '-r', default='sf_radius', type=str, help='radius attribute or float')
+    parser.add_argument('--tip-width', '-t', default=None,  type=float, help='tip width in metres')
     parser.add_argument('--verbose', action='store_true', help='print something')
     args = parser.parse_args()
     run(args.branch, 
         base_idx=args.bidx,
         attribute=args.attribute, 
-        radius=args.radius, 
+        tip_width=args.tip_width,
         verbose=args.verbose)

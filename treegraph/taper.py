@@ -4,7 +4,7 @@ from tqdm.autonotebook import tqdm
 from scipy import optimize
 
 
-def run(centres, path_ids, tip_radius=.005, Plot=False, verbose=False):
+def run(centres, path_ids, tip_radius=None, Plot=False, verbose=False):
         
     """
     This function is approximately copied from TreeQSM 2.x
@@ -48,9 +48,10 @@ def run(centres, path_ids, tip_radius=.005, Plot=False, verbose=False):
         bounds.loc[:, 'low'] = bounds.m_radius * .75
         bounds.loc[:, 'avg'] = bounds.m_radius
         idx = bounds.index.max()
-        bounds.loc[idx, 'upp'] = tip_radius
-        bounds.loc[idx, 'low'] = tip_radius
-        bounds.loc[idx, 'avg'] = tip_radius
+        if tip_radius is not None:
+            bounds.loc[idx, 'upp'] = tip_radius
+            bounds.loc[idx, 'low'] = tip_radius
+            bounds.loc[idx, 'avg'] = tip_radius
         bounds = bounds.loc[~np.isnan(bounds.distance_from_base)]
         
         if Plot and nbranch == 0:
@@ -66,9 +67,9 @@ def run(centres, path_ids, tip_radius=.005, Plot=False, verbose=False):
                 # https://stackoverflow.com/a/15193360/1414831 
 
                 def f(x, *p): return np.poly1d(p)(x)
-
+                
                 sigma = np.ones(len(bounds.distance_from_base))
-                sigma[-1] = .01
+                if tip_radius is not None: sigma[-1] = .01
 
                 p, _ = optimize.curve_fit(f, 
                                           bounds.distance_from_base, 
@@ -82,7 +83,7 @@ def run(centres, path_ids, tip_radius=.005, Plot=False, verbose=False):
 
             branch.loc[branch.m_radius > branch.upp, 'm_radius'] = branch.loc[branch.m_radius > branch.upp].upp
             branch.loc[branch.m_radius < branch.low, 'm_radius'] = branch.loc[branch.m_radius < branch.low].low
-            branch.loc[branch.m_radius < tip_radius, 'm_radius'] = tip_radius
+            if tip_radius is not None: branch.loc[branch.m_radius < tip_radius, 'm_radius'] = tip_radius
             branch.loc[np.isnan(branch.m_radius), 'm_radius'] = np.poly1d(p)(branch.loc[np.isnan(branch.m_radius)].distance_from_base)
             branch.m_radius = np.abs(branch.m_radius)
             

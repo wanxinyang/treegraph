@@ -51,11 +51,9 @@ def qsm2json(self, path, name=None):
     internodes.loc[:, 'volume'] = self.cyls.groupby('ninternode').vol.sum()
     internodes.loc[:, 'surface_area'] = self.cyls.groupby('ninternode').surface_area.sum()
     internodes.loc[:, 'mean_radius'] = self.cyls.groupby('ninternode').radius.mean()
-
-    self.cyls.loc[:, 'is_tipI'] = self.cyls.is_tip.astype(int)
-    internodes.loc[:, 'is_tip'] = self.cyls.groupby('ninternode').is_tipI.max().astype(bool)
+    internodes.loc[:, 'parent'] = self.centres.groupby('ninternode').pinternode.min()
+    internodes.loc[:, 'is_tip'] = self.cyls.groupby('ninternode').is_tip.max().astype(bool)
     
-
     first_and_last = self.cyls.groupby('ninternode').ncyl.agg([min, max]).reset_index().rename(columns={'min':'First', 'max':'Last'})
 
     # distal radius (ends)
@@ -69,6 +67,17 @@ def qsm2json(self, path, name=None):
     proximal_radius_f = lambda row: self.cyls.loc[(self.cyls.ninternode == row.ninternode) & 
                                                   (self.cyls.ncyl == row.ncyl)].radius.mean()
     internodes.loc[:, 'proximal_radius'] = centre_cyl.apply(proximal_radius_f, axis=1)
+
+    # radius before furcation ("parent" if measured by hand)
+    b4fur_radius = lambda row: self.centres.loc[(self.centres.ninternode == row.ninternode) &
+                                                (self.centres.ncyl == row.Last)].m_radius.item()
+    internodes.loc[:, 'b4fur_radius'] = first_and_last.apply(b4fur_radius, axis=1)
+    internodes.loc[internodes.is_tip, 'b4fur_radius'] = np.nan
+    
+    # radius after furcation ("child" if measured by hand) 
+    after_fur_radius = lambda row: self.centres.loc[(self.centres.ninternode == row.ninternode) &
+                                                (self.centres.ncyl == row.First)].m_radius.item()
+    internodes.loc[:, 'after_fur_radius'] = first_and_last.apply(after_fur_radius, axis=1)
     
     ### node data
     nodes = self.centres[(self.centres.nbranch != 0) & 
