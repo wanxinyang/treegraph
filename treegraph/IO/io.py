@@ -51,7 +51,7 @@ def qsm2json(self, path, name=None):
     
     ### internode data
     self.cyls.ncyl = self.cyls.ncyl.astype(int) 
-    self.cyls.loc[:, 'surface_area'] = 2 * np.pi * self.cyls.radius * self.cyls.length + 2 * np.pi * self.cyls.radius**2
+    self.cyls.loc[:, 'surface_area'] = 2 * np.pi * self.cyls.radius * self.cyls.length #+ 2 * np.pi * self.cyls.radius**2
 
     internodes = pd.DataFrame(data=self.cyls.groupby('ninternode').length.sum(),
                               columns=['length', 'volume', 'ncyl', 'mean_radius', 'is_tip',
@@ -116,7 +116,7 @@ def qsm2json(self, path, name=None):
 
     ### input arguments
     args = {'pc_path': self.path, 'base_idx': self.base_location, 
-    'attribute': self.attribute, 'radius': self.radius, 'verbose': self.verbose, 
+    'attribute': self.attribute, 'tip_width': self.tip_width, 'verbose': self.verbose, 
     'cluster_size': self.cluster_size, 'minpts': self.min_pts, 'exponent': self.exponent, 
     'minbin': self.minbin, 'maxbin': self.maxbin, 'output_path': self.output_path}
 
