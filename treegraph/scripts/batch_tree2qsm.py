@@ -1,7 +1,7 @@
 import yaml
-from glob import glob
 import treegraph
 from treegraph.scripts import tree2qsm
+from glob import glob
 
 # run tree2qsm.py on all inputs combination one after the other
 inputs_f = glob('inputs-cs*.yml')
@@ -14,7 +14,7 @@ for m in range(len(inputs_f)):
     tree2qsm.run(args['data_path'], 
                 base_idx=args['base_idx'],
                 attribute=args['attribute'], 
-                radius=args['radius'], 
+                tip_width=args['tip_width'], 
                 verbose=args['verbose'],
                 cluster_size=args['cluster_size'], 
                 min_pts=args['minpts'], 

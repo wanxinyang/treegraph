@@ -8,16 +8,17 @@ class initialise:
     
     def __init__(self, pc, 
                  downsample=None,
-                 min_pts=10, 
+                 min_pts=3, 
                  exponent=2.0,
-                 minbin=.05,
+                 minbin=.02,
                  maxbin=.5,   
-                 cluster_size=.1,
+                 cluster_size=.04,
                  base_location=None, 
                  columns=['x', 'y', 'z'],
                  verbose=False,
                  attribute='nbranch',
-                 radius='sf_radius',
+                 radius='m_radius',
+                 tip_width=None,
                  output_path='./'):
 
         
@@ -64,6 +65,7 @@ class initialise:
         self.cluster_size=cluster_size
         self.attribute = attribute
         self.radius = radius
+        self.tip_width = tip_width
         self.output_path = output_path
         
         # add unique point id
