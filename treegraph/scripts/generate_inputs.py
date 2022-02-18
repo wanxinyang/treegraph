@@ -9,17 +9,19 @@ base_idx = None
 attribute = 'nbranch'
 # 'sf_radius': surface fitting radius, 'm_radius': smoothed radius
 radius = 'm_radius'
+# tip diameter, float, unit in metre
+tip_width = None
 # print something
 verbose = False
-# voxel length for downsample when generating initial graph
-cluster_size = [.04, .05]
+# voxel length in downsampling before  generating initial graph
+cluster_size = [.04]
 # min number of points to pass the filtering
 minpts = 3
-# the base of the exponential function which segments the inital graph
+# the coefficient controlling the steepness of the exponential function which segments the inital graph
 exponent = [2]
-# min length of a segmented slice
+# minimum bin width of a segmented slice
 minbin = [.02, .03, .04, .05, .06, .07]
-# max length of a segmented slice
+# maximum bin width of a segmented slice
 maxbin = [.25, .30, .35, .40, .45, .50]
 # path to outputs
 output_path = '../results/TreeID/'
@@ -34,6 +36,7 @@ for i in range(len(cluster_size)):
                           'base_idx':base_idx,
                           'attribute':attribute,
                           'radius':radius,
+                          'tip_width':tip_width,
                           'verbose':verbose,
                           'cluster_size':cluster_size[i],
                           'minpts':minpts,
@@ -41,5 +44,5 @@ for i in range(len(cluster_size)):
                           'minbin':minbin[k],
                           'maxbin':maxbin[l],
                           'output_path':output_path}
-                with open(f'inputs-cs{cluster_size[i]}-e{exponent[j]}-minb{minbin[k]}-maxb{maxbin[l]}-{radius}.yml', 'w') as f:
+                with open(f'inputs-cs{cluster_size[i]}-e{exponent[j]}-minb{minbin[k]}-maxb{maxbin[l]}-tip{tip_width}.yml', 'w') as f:
                     f.write(yaml.safe_dump(inputs))

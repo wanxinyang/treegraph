@@ -1,4 +1,5 @@
 import os
+from networkx.algorithms.distance_measures import radius
 import yaml
 import argparse
 import numpy as np
@@ -19,7 +20,7 @@ from treegraph import IO
 from treegraph import graph_process
 from datetime import *
 
-def run(path, base_idx=None, attribute='nbranch', radius='m_radius', verbose=False,
+def run(path, base_idx=None, attribute='nbranch', radius='m_radius', tip_width=None, verbose=False,
         cluster_size=.02, min_pts=5, exponent=1, minbin=.02, maxbin=.25, output='../results/'):
 
     self = treegraph.initialise(path,
@@ -34,11 +35,12 @@ def run(path, base_idx=None, attribute='nbranch', radius='m_radius', verbose=Fal
                                 verbose=verbose,
                                 attribute=attribute,
                                 radius=radius,
+                                tip_width=tip_width,
                                 output_path=output)
     self.path = path
 
     inputs = f"path = {path},\nbase_idx = {base_idx},\n\
-attribute = {attribute},\nradius = {radius},\n\
+attribute = {attribute},\ntip_width = {tip_width},\n\
 verbose = {verbose},\ncluster_size = {cluster_size},\n\
 minpts = {min_pts}, \nexponent = {exponent},\n\
 minbin = {minbin},\nmaxbin = {maxbin},\n\
@@ -54,8 +56,8 @@ output_path = {output}"
     e = f'e{exponent}-'
     minb = f'minb{minbin}-'
     maxb = f'maxb{maxbin}-'
-    radius = f'{radius}'
-    o_f = output + fn + '-' + cs + e + minb + maxb + radius 
+    tip = f'tip{tip_width}'
+    o_f = output + fn + '-' + cs + e + minb + maxb + tip
     with open(o_f+'.txt', 'w') as f:
         f.write(f'************Inputs************\n{inputs}\n')
         f.write('\n************outputs************\n')
@@ -178,7 +180,8 @@ output_path = {output}"
         f.write(f"\nsf_radius:\n{self.centres.sf_radius.describe()}")
 
     self.centres.loc[:, 'distance_from_base'] = self.centres.node_id.map(self.path_distance)
-    self.centres = taper.run(self.centres, self.path_ids, tip_radius=.001)
+    # self.centres = taper.run(self.centres, self.path_ids, tip_radius=.001)
+    self.centres = taper.run(self.centres, self.path_ids, tip_radius=None if tip_width is None else tip_width / 2)
     with open(o_f+'.txt', 'a') as f:
         f.write('\n\n----Smooth radii based on a taper function----')
         f.write(f"\nm_radius:\n{self.centres.m_radius.describe()}")
@@ -275,7 +278,8 @@ if __name__ == "__main__":
     run(args['data_path'], 
         base_idx=args['base_idx'],
         attribute=args['attribute'], 
-        radius=args['radius'], 
+        radius=args['radius'],
+        tip_width=args['tip_width'], 
         verbose=args['verbose'],
         cluster_size=args['cluster_size'], 
         min_pts=args['minpts'], 
