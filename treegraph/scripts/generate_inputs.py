@@ -25,6 +25,8 @@ minbin = [.02, .03, .04, .05, .06, .07]
 maxbin = [.25, .30, .35, .40, .45, .50]
 # path to outputs
 output_path = '../results/TreeID/'
+# generate a txt file to store inputs, intermediate results and tree-level attributes
+txt_file = True
 
 
 ## store each combination of inputs into a yaml file
@@ -43,6 +45,7 @@ for i in range(len(cluster_size)):
                           'exponent':exponent[j],
                           'minbin':minbin[k],
                           'maxbin':maxbin[l],
-                          'output_path':output_path}
+                          'output_path':output_path,
+                          'txt_file':txt_file}
                 with open(f'inputs-cs{cluster_size[i]}-e{exponent[j]}-minb{minbin[k]}-maxb{maxbin[l]}-tip{tip_width}.yml', 'w') as f:
                     f.write(yaml.safe_dump(inputs))

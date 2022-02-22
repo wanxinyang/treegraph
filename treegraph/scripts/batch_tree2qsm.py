@@ -22,4 +22,5 @@ for m in range(len(inputs_f)):
                 exponent=args['exponent'], 
                 minbin=args['minbin'],
                 maxbin=args['maxbin'],
-                output=args['output_path'])
+                output=args['output_path'],
+                txt_file=args['txt_file'])
