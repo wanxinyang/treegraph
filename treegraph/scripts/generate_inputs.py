@@ -1,4 +1,3 @@
-from networkx.readwrite.pajek import teardown_module
 import yaml
 
 ## set input candidates
