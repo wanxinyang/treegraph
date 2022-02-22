@@ -21,7 +21,8 @@ from treegraph import graph_process
 from datetime import *
 
 def run(path, base_idx=None, attribute='nbranch', radius='m_radius', tip_width=None, verbose=False,
-        cluster_size=.02, min_pts=5, exponent=1, minbin=.02, maxbin=.25, output='../results/', txt_file=True):
+        cluster_size=.02, min_pts=5, exponent=1, minbin=.02, maxbin=.25, output='../results/', 
+        txt_file=True, base_corr=True):
 
     self = treegraph.initialise(path,
                                 base_location=base_idx,
@@ -52,9 +53,9 @@ def run(path, base_idx=None, attribute='nbranch', radius='m_radius', tip_width=N
     tip = f'tip{tip_width}'
     o_f = output + fn + '-' + cs + e + minb + maxb + tip
     if txt_file:
-        inputs = f"path = {path},\nbase_idx = {base_idx},\nattribute = {attribute},\ntip_width = {tip_width},\n\
-verbose = {verbose},\ncluster_size = {cluster_size},\nminpts = {min_pts}, \nexponent = {exponent},\n\
-minbin = {minbin},\nmaxbin = {maxbin},\noutput_path = {output},\ntxt_file = {txt_file}"
+        inputs = f"path = {path}\nbase_idx = {base_idx}\nattribute = {attribute}\ntip_width = {tip_width}\n\
+verbose = {verbose}\ncluster_size = {cluster_size}\nminpts = {min_pts}\nexponent = {exponent}\n\
+minbin = {minbin}\nmaxbin = {maxbin}\noutput_path = {output}\ntxt_file = {txt_file}\nbase_correction = {base_corr}"
 
         with open(o_f+'.txt', 'w') as f:
             f.write(f'************Inputs************\n{inputs}\n')
@@ -77,9 +78,10 @@ minbin = {minbin},\nmaxbin = {maxbin},\noutput_path = {output},\ntxt_file = {txt
 
 
     ### build initial graph ###
-    base_slice, fit_C, new_base = distance_from_base.base_fitting(self, base_slice_len=2.0)
-    self.pc, self.G, self.path_dict = distance_from_base.run(self.pc, self.base_location, \
-        new_base, low_slice_len=.3, cluster_size=self.cluster_size)
+    self.pc, self.G, new_base = distance_from_base.run(self.pc, self.base_location, 
+                                                       cluster_size=self.cluster_size,
+                                                       knn=100, verbose=False, 
+                                                       base_correction=base_corr)
     if txt_file:
         with open(o_f+'.txt', 'a') as f:
             f.write('\n\n----Build graph----')
@@ -131,9 +133,11 @@ minbin = {minbin},\nmaxbin = {maxbin},\noutput_path = {output},\ntxt_file = {txt
     self.G_skeleton_reslice, self.path_distance, self.path_ids = build_graph.run(self.centres, verbose=self.verbose)
     self.centres, self.branch_hierarchy = attribute_centres.run(self.centres, self.path_ids, 
                                                                 branch_hierarchy=True, verbose=True)  
-    # adjust the coords of the 1st slice centre with the coords of new_base_node
-    idx = self.centres[self.centres.slice_id == 0].index.values[0]
-    self.centres.loc[idx, ('cx','cy','cz','distance_from_base')] = [new_base[0], new_base[1], new_base[2], 0]
+    if base_corr:
+        # adjust the coords of the 1st slice centre to the coords of new_base_node
+        idx = self.centres[self.centres.slice_id == 0].index.values[0]
+        self.centres.loc[idx, ('cx','cy','cz','distance_from_base')] = [new_base[0], new_base[1], new_base[2], 0]
+    
     if txt_file:
         with open(o_f+'.txt', 'a') as f:
             f.write('\n\n----Rebuild skeleton----') 
@@ -300,4 +304,5 @@ if __name__ == "__main__":
         minbin=args['minbin'],
         maxbin=args['maxbin'],
         output=args['output_path'],
-        txt_file=args['txt_file'])
+        txt_file=args['txt_file'],
+        base_corr=args['base_corr'])

@@ -1,3 +1,4 @@
+from networkx.readwrite.pajek import teardown_module
 import yaml
 
 ## set input candidates
@@ -25,8 +26,10 @@ minbin = [.02, .03, .04, .05, .06, .07]
 maxbin = [.25, .30, .35, .40, .45, .50]
 # path to outputs
 output_path = '../results/TreeID/'
-# generate a txt file to store inputs, intermediate results and tree-level attributes
+# if True then generate a txt file to store inputs, intermediate results and tree-level attributes
 txt_file = True
+# if True then do base fitting correction
+base_corr = True
 
 
 ## store each combination of inputs into a yaml file
@@ -46,6 +49,7 @@ for i in range(len(cluster_size)):
                           'minbin':minbin[k],
                           'maxbin':maxbin[l],
                           'output_path':output_path,
-                          'txt_file':txt_file}
+                          'txt_file':txt_file,
+                          'base_corr':base_corr}
                 with open(f'inputs-cs{cluster_size[i]}-e{exponent[j]}-minb{minbin[k]}-maxb{maxbin[l]}-tip{tip_width}.yml', 'w') as f:
                     f.write(yaml.safe_dump(inputs))

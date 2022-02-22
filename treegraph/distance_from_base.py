@@ -6,24 +6,23 @@ from treegraph.third_party import shortpath as p2g
 from treegraph import downsample
 from treegraph.third_party import cylinder_fitting as cyl_fit
 
-def run(pc, base_location=None, new_base=None,\
-        low_slice_len=.2, cluster_size=False, knn=100, verbose=False):
+# update run() by adding base fitting correction
+def run(pc, base_location=None, cluster_size=False, knn=100, verbose=False,\
+        base_correction=True):
     
     """
     Attributes each point with a distance from base
     
     base_location: None or idx (default None)
         Index of the base point i.e. where point distance are measured to.
-    new_base_node: None or list (default None)
-        New base node coordinates [x,y,z] calculated by base_fitting().
-    low_slice_len: float (default 0.2 meter)
-        Vertical length of a slice at lower base. Edges between the new 
-        base node and the nodes in this slice will be generated in initial graph.
     cluster_size: False or float (default False)
         Downsample point cloud to generate skeleton points, this can be
         much quicker for large point clouds.
     knn: int (default 100)
         Refer to pc2graph docs
+    base_correction: boolean (default True)
+        Generate a new base node located at the centre of tree base cross-section.
+        Update initial graph by connecting points in the base slice to new base node.
     """
     
     columns = pc.columns.to_list() + ['distance_from_base']
@@ -44,12 +43,12 @@ def run(pc, base_location=None, new_base=None,\
                            nbrs_threshold_step=.1,
 #                                 graph_threshold=.05
                             )
-
-    if new_base is None:
-        # extracts shortest path information from the initial graph
-        node_ids, distance, path_dict = p2g.extract_path_info(G, pc.loc[pc.pid == base_location].index[0])
-    else:
+    if base_correction:
+        # generate new base node
+        _, _, _, new_base = base_fitting(pc, base_slice_len=1.5)
+        
         # select points in the lowest slice
+        low_slice_len = 0.2  # unit in metre
         if 'downsample' in pc.columns:
             low_slice = pc[(pc.z <= (min(pc.z)+low_slice_len)) &\
                                 (pc.downsample == True)]
@@ -90,8 +89,12 @@ def run(pc, base_location=None, new_base=None,\
     
         # extracts shortest path information from the updated initial graph
         node_ids, distance, path_dict = p2g.extract_path_info(G, new_base_id)
-
-    
+ 
+    else: # do not generate new base node and update the initial graph
+        # extracts shortest path information from the initial graph
+        node_ids, distance, path_dict = p2g.extract_path_info(G, pc.loc[pc.pid == base_location].index[0])
+        new_base = np.nan
+        
     if 'distance_from_base' in pc.columns:
         del pc['distance_from_base']
     
@@ -106,16 +109,16 @@ def run(pc, base_location=None, new_base=None,\
     else:
         pc.loc[node_ids, 'distance_from_base'] = np.array(list(distance))
     
-    return pc[columns], G, path_dict
+    return pc[columns], G, new_base
 
 
-def base_fitting(self, base_slice_len=2.0):
+def base_fitting(pc, base_slice_len=1.5):
     '''
     Find new base node by fitting a cylinder to the bottom slice.
     
     Inputs:
-        - self: dataframe
-        - base_slice_len: float (default: 2.0 meters)
+        - pc: point cloud dataframe
+        - base_slice_len: float (default: 1.5 meters)
             Vertical length of a slice to be segmented from base, 
             and a cylinder will be fitted to this slice segment.
     
@@ -128,11 +131,11 @@ def base_fitting(self, base_slice_len=2.0):
             x,y,z coordinates of the new base node  
     '''
     # extract points in the bottom slice    
-    if 'downsample' in self.pc.columns:
-        base_slice = self.pc[(self.pc.z <= (min(self.pc.z)+base_slice_len)) &\
-                             (self.pc.downsample == True)][['x','y','z']]
+    if 'downsample' in pc.columns:
+        base_slice = pc[(pc.z <= (min(pc.z)+base_slice_len)) &\
+                             (pc.downsample == True)][['x','y','z']]
     else:
-        base_slice = self.pc[self.pc.z <= (min(self.pc.z)+base_slice_len)][['x','y','z']]
+        base_slice = pc[pc.z <= (min(pc.z)+base_slice_len)][['x','y','z']]
     
     pts = base_slice.to_numpy()
     axis_dir, fit_C, r_fit, fit_err = cyl_fit.fit(pts)
@@ -142,9 +145,9 @@ def base_fitting(self, base_slice_len=2.0):
     # print(f'fit error = {fit_err}')
 
     # find the min Z coordinate of the point cloud
-    lowest_z = np.array(self.pc.z[self.pc.z == min(self.pc.z)])[0]
+    lowest_z = np.array(pc.z[pc.z == min(pc.z)])[0]
 
-    # define new base node as the point located on the cyl axis 
+    # define new base node as the point located on the cyl axis line
     # with Z coord the same as the lowest point in pc
     # calculate its X,Y coords based on line equation defined by axis direction
     base_x = (lowest_z - fit_C[2]) / axis_dir[2] * axis_dir[0] + fit_C[0]
@@ -152,4 +155,4 @@ def base_fitting(self, base_slice_len=2.0):
     new_base = [base_x, base_y, lowest_z]
     # print(f'new base node coords: {new_base}')
     
-    return base_slice, fit_C, new_base
+    return base_slice, fit_C, axis_dir, new_base    
