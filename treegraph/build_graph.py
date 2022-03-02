@@ -53,7 +53,9 @@ def run(centres, verbose=False):
     base_id = centres.loc[idx].node_id
     
     G_skeleton = nx.Graph()
-    G_skeleton.add_weighted_edges_from([(int(row.node1), int(row.node2), row.length) 
+    for row in centres.itertuples():
+        G_skeleton.add_node(row.node_id, pos=[float(row.cx), float(row.cy), float(row.cz)], slice_id=int(row.slice_id))
+    G_skeleton.add_weighted_edges_from([(int(row.node1), int(row.node2), float(row.length)) 
                                         for row in edges.itertuples()])
 
     path_distance, path_ids = nx.single_source_bellman_ford(G_skeleton, base_id)

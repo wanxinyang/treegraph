@@ -26,7 +26,7 @@ def to_ply(cyls, path, attribute='nbranch', verbose=False):
     if verbose: print('cylinders saved to:', path)
 
     
-def qsm2json(self, path, name=None):
+def qsm2json(self, path, name=None, graph=False):
     
     whole_branch = self.cyls[['length', 'vol', 'surface_area']].sum().to_dict()
     whole_branch['N_terminal_nodes'] = len(self.cyls[self.cyls.is_tip])
@@ -120,21 +120,8 @@ def qsm2json(self, path, name=None):
     'cluster_size': self.cluster_size, 'minpts': self.min_pts, 'exponent': self.exponent, 
     'minbin': self.minbin, 'maxbin': self.maxbin, 'output_path': self.output_path}
 
-    ### graph information
-    # initial graph nodes and edges
-    G_init = dict(nodes=[[int(n), self.G.nodes[n]] for n in self.G.nodes()], \
-             edges=[[int(u), int(v)] for u,v in self.G.edges()])
-    # initial graph centres' coords
-    G_init_cent = self.G_centres
-    # final skeleton graph nodes and edges
-    G_skel = dict(nodes=[[int(n), self.G_skeleton_splitf.nodes[n]] for n in self.G_skeleton_splitf.nodes()], \
-                      edges=[[int(u), int(v)] for u,v in self.G_skeleton_splitf.edges()])
-    # final graph centres' coords
-    G_skel_cent = self.G_skeleton_splitf_centres
-
     ### processing time
     run_time = {'run_time': self.time}
-
 
     JSON = {'name':name,
             'created':datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -144,12 +131,30 @@ def qsm2json(self, path, name=None):
             'cyls':self.cyls.to_json(),
             'centres':self.centres.to_json(),
             'args':args,
-            'G_init':G_init,
-            'G_init_cent':G_init_cent.to_json(),
-            'G_skel':G_skel,
-            'G_skel_cent':G_skel_cent.to_json(),
             'run_time':run_time}
+    
+    ### graph information
+    if graph == True:
+        # initial graph nodes and edges
+        G_init = dict(nodes=[[int(n), self.G.nodes[n]] for n in self.G.nodes()], \
+                edges=[[int(u), int(v), self.G.edges[u,v]] for u,v in self.G.edges()])
+ 
+        # final skeleton graph nodes and edges
+        G_skel = dict(nodes=[[int(n), self.G_skeleton_splitf.nodes[n]] for n in self.G_skeleton_splitf.nodes()], \
+                    edges=[[int(u), int(v), self.G_skeleton_splitf.edges[u,v]] for u,v in self.G_skeleton_splitf.edges()])
 
+        JSON = {'name':name,
+                'created':datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                'tree':pd.DataFrame(data=whole_branch, index=[0]).to_json(),
+                'internode':internodes.to_json(),
+                'node':nodes.to_json(),
+                'cyls':self.cyls.to_json(),
+                'centres':self.centres.to_json(),
+                'args':args,
+                'run_time':run_time,
+                'G_init':G_init,
+                'G_skel':G_skel}
+    
     with open(path, 'w') as fh: fh.write(json.dumps(JSON))
 
 class read_json:
@@ -157,13 +162,12 @@ class read_json:
     def __init__ (self, 
                   path,
                   pretty_printing=False,
-                  attributes=['tree', 'internode', 'node', 'cyls', 'centres', 'G_skel_cent'],
-                  initial_G=False,):
+                  attributes=['tree', 'internode', 'node', 'cyls', 'centres'],
+                  graph=False):
 
         JSON = json.load(open(path))
         setattr(self, 'name', JSON['name'])
         setattr(self, 'args', JSON['args'])
-        setattr(self, 'G_skel', JSON['G_skel'])
         run_time = JSON['run_time']['run_time']
         setattr(self, 'run_time', run_time)
 
@@ -200,6 +204,6 @@ class read_json:
             except:
                 raise Exception('Field "{}" not in {}'.format(att, path))
 
-        if initial_G:
+        if graph == True:
             setattr(self, 'G_init', JSON['G_init'])
-            setattr(self, 'G_init_cent', pd.read_json(JSON['G_init_cent']))
+            setattr(self, 'G_skel', JSON['G_skel'])

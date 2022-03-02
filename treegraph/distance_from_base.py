@@ -33,7 +33,7 @@ def run(pc, base_location=None, cluster_size=False, knn=100, verbose=False,\
                                            remove_noise=True,
                                            keep_columns=['VX'])
     
-    c = ['x', 'y', 'z']
+    c = ['x', 'y', 'z', 'pid']
     # generate initial graph
     G = p2g.array_to_graph(pc.loc[pc.downsample][c] if 'downsample' in pc.columns else pc[c], 
                            base_id=pc.loc[pc.pid == base_location].index[0], 
@@ -60,12 +60,12 @@ def run(pc, base_location=None, cluster_size=False, knn=100, verbose=False,\
         distance = []
         for i, row in low_slice.iterrows():
             index.append(i)
-            c = row[['x','y','z']].values
-            distance.append(np.linalg.norm(new_base - c))
+            coor = row[['x','y','z']].values
+            distance.append(np.linalg.norm(new_base - coor))
 
         # add the new base node to the graph    
         new_base_id = np.max(pc.index) + 1
-        G.add_node(new_base_id)
+        G.add_node(new_base_id, pos=(new_base[0], new_base[1], new_base[2]), pid=new_base_id)
 
         # add edges (weighted by distance) between new base node and the low_slice nodes in graph
         p2g.add_nodes(G, new_base_id, index, distance, np.inf)
@@ -90,7 +90,7 @@ def run(pc, base_location=None, cluster_size=False, knn=100, verbose=False,\
         # extracts shortest path information from the updated initial graph
         node_ids, distance, path_dict = p2g.extract_path_info(G, new_base_id)
  
-    else: # do not generate new base node and update the initial graph
+    else: # do not generate new base node nor update the initial graph
         # extracts shortest path information from the initial graph
         node_ids, distance, path_dict = p2g.extract_path_info(G, pc.loc[pc.pid == base_location].index[0])
         new_base = np.nan

@@ -17,7 +17,6 @@ from treegraph import fit_cylinders
 from treegraph import taper
 from treegraph import generate_cylinder_model
 from treegraph import IO
-from treegraph import graph_process
 from datetime import *
 
 def run(path, base_idx=None, attribute='nbranch', radius='m_radius', tip_width=None, verbose=False,
@@ -42,7 +41,6 @@ def run(path, base_idx=None, attribute='nbranch', radius='m_radius', tip_width=N
 
     ### open a file to store result summary ###
     fn = os.path.splitext(path)[0].split('/')[-1]
-    #dt = datetime.datetime.now()
     dt = datetime.now()
     print(dt)
     sdt = dt.strftime('%Y-%m-%d_%H-%M')
@@ -86,10 +84,6 @@ minbin = {minbin}\nmaxbin = {maxbin}\noutput_path = {output}\ntxt_file = {txt_fi
         with open(o_f+'.txt', 'a') as f:
             f.write('\n\n----Build graph----')
             f.write(f'\nInitial graph has {len(self.G.nodes)} nodes and {len(self.G.edges)} edges.') 
-    ## save coordinates and id for initial graph nodes
-    self.G_centres = self.pc[['x','y','z','pid','distance_from_base']]
-    # graph_process.save_graph(self.G, o_f+'_initial_G')
-    # graph_process.save_centres_for_graph(self.pc, o_f+'_self.pc')
 
 
     ### identify skeleton and build skeleton graph ###
@@ -149,11 +143,7 @@ minbin = {minbin}\nmaxbin = {maxbin}\noutput_path = {output}\ntxt_file = {txt_fi
                                                                              self.branch_hierarchy.copy(),
                                                                              verbose=True)
     self.G_skeleton_splitf, self.path_distance, self.path_ids = build_graph.run(self.centres, verbose=self.verbose)
-    ## save coordinates and id for skeleton graph nodes
-    self.G_skeleton_splitf_centres = self.centres[['cx','cy','cz','node_id','slice_id']]
-    # graph_process.save_graph(self.G_skeleton_splitf, o_f+'_self.G_skeleton')
-    # graph_process.save_centres_for_graph(self.centres, o_f+'_self.centres')
-    
+     
     self.centres, self.branch_hierarchy = attribute_centres.run(self.centres, self.path_ids, 
                                                                 branch_hierarchy=True, verbose=True)
     if txt_file:
@@ -223,7 +213,7 @@ minbin = {minbin}\nmaxbin = {maxbin}\noutput_path = {output}\ntxt_file = {txt_fi
     e_dt = datetime.now()
     self.time = (e_dt - dt).total_seconds()
 
-    fn_cyls = o_f + '.cyls.ply'
+    fn_cyls = o_f + '.mesh.ply'
     IO.to_ply(self.cyls, fn_cyls)
     if txt_file:
         with open(o_f+'.txt', 'a') as f:
@@ -237,7 +227,7 @@ minbin = {minbin}\nmaxbin = {maxbin}\noutput_path = {output}\ntxt_file = {txt_fi
             f.write(f'\nSkeleton points have been saved in:\n{fn_centres}\n')
 
     fn_json = o_f + '.json'
-    IO.qsm2json(self, fn_json, name=fn)
+    IO.qsm2json(self, fn_json, name=fn, graph=False)
     if txt_file:
         with open(o_f+'.txt', 'a') as f:
             f.write(f'\nJson file:\n{fn_json}\n')
