@@ -65,7 +65,9 @@ def run(pc, base_location=None, cluster_size=False, knn=100, verbose=False,\
 
         # add the new base node to the graph    
         new_base_id = np.max(pc.index) + 1
-        G.add_node(new_base_id, pos=(new_base[0], new_base[1], new_base[2]), pid=new_base_id)
+        G.add_node(int(new_base_id), 
+                   pos=[float(new_base[0]), float(new_base[1]), float(new_base[2])], 
+                   pid=int(new_base_id))
 
         # add edges (weighted by distance) between new base node and the low_slice nodes in graph
         p2g.add_nodes(G, new_base_id, index, distance, np.inf)

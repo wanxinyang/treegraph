@@ -24,4 +24,5 @@ for m in range(len(inputs_f)):
                 maxbin=args['maxbin'],
                 output=args['output_path'],
                 txt_file=args['txt_file'],
-                base_corr=args['base_corr'])
+                base_corr=args['base_corr'],
+                save_graph=args['save_graph'])

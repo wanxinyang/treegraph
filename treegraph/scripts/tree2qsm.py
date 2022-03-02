@@ -21,7 +21,7 @@ from datetime import *
 
 def run(path, base_idx=None, attribute='nbranch', radius='m_radius', tip_width=None, verbose=False,
         cluster_size=.02, min_pts=5, exponent=1, minbin=.02, maxbin=.25, output='../results/', 
-        txt_file=True, base_corr=True):
+        txt_file=True, base_corr=True, save_graph=False):
 
     self = treegraph.initialise(path,
                                 base_location=base_idx,
@@ -53,7 +53,8 @@ def run(path, base_idx=None, attribute='nbranch', radius='m_radius', tip_width=N
     if txt_file:
         inputs = f"path = {path}\nbase_idx = {base_idx}\nattribute = {attribute}\ntip_width = {tip_width}\n\
 verbose = {verbose}\ncluster_size = {cluster_size}\nminpts = {min_pts}\nexponent = {exponent}\n\
-minbin = {minbin}\nmaxbin = {maxbin}\noutput_path = {output}\ntxt_file = {txt_file}\nbase_correction = {base_corr}"
+minbin = {minbin}\nmaxbin = {maxbin}\noutput_path = {output}\ntxt_file = {txt_file}\n\
+base_correction = {base_corr}\nsave_graph = {save_graph}"
 
         with open(o_f+'.txt', 'w') as f:
             f.write(f'************Inputs************\n{inputs}\n')
@@ -227,7 +228,7 @@ minbin = {minbin}\nmaxbin = {maxbin}\noutput_path = {output}\ntxt_file = {txt_fi
             f.write(f'\nSkeleton points have been saved in:\n{fn_centres}\n')
 
     fn_json = o_f + '.json'
-    IO.qsm2json(self, fn_json, name=fn, graph=False)
+    IO.qsm2json(self, fn_json, name=fn, graph=save_graph)
     if txt_file:
         with open(o_f+'.txt', 'a') as f:
             f.write(f'\nJson file:\n{fn_json}\n')
@@ -295,4 +296,5 @@ if __name__ == "__main__":
         maxbin=args['maxbin'],
         output=args['output_path'],
         txt_file=args['txt_file'],
-        base_corr=args['base_corr'])
+        base_corr=args['base_corr'],
+        save_graph=args['save_graph'])

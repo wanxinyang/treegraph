@@ -29,6 +29,8 @@ output_path = '../results/TreeID/'
 txt_file = True
 # if True then do base fitting correction
 base_corr = True
+# if True then save initial graph & skeleton graph in the output json file
+save_graph = False
 
 
 ## store each combination of inputs into a yaml file
@@ -49,6 +51,7 @@ for i in range(len(cluster_size)):
                           'maxbin':maxbin[l],
                           'output_path':output_path,
                           'txt_file':txt_file,
-                          'base_corr':base_corr}
+                          'base_corr':base_corr,
+                          'save_graph':save_graph}
                 with open(f'inputs-cs{cluster_size[i]}-e{exponent[j]}-minb{minbin[k]}-maxb{maxbin[l]}-tip{tip_width}.yml', 'w') as f:
                     f.write(yaml.safe_dump(inputs))
