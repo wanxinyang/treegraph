@@ -63,8 +63,9 @@ def plot_3d_graph(G, pc=pd.DataFrame(), centres=pd.DataFrame(), title='self.G'):
                                z=z_nodes,
                                mode='markers',
                                marker=dict(symbol='circle',
-                                           size=1,
-                                           color='grey'))
+                                           size=1.25,
+                                           color='grey',
+                                           opacity=0.7))
     # trace for nodes with attribute of slice_id
     if 'slice_id' in pc.columns:
         trace_nodes = go.Scatter3d(x=x_nodes,
@@ -72,7 +73,8 @@ def plot_3d_graph(G, pc=pd.DataFrame(), centres=pd.DataFrame(), title='self.G'):
                                    z=z_nodes,
                                    mode='markers',
                                    marker=dict(symbol='circle',
-                                               size=1,
+                                               size=1.25,
+                                               opacity=0.7,
                                                color=labels,
                                                colorscale=px.colors.qualitative.Plotly),
                                    text=labels,
@@ -149,6 +151,10 @@ def plot_subgraph(G, pc=pd.DataFrame(), centres=pd.DataFrame(), s_start=0, s_end
     Output:
         An interactive Plotly figure of a 3D nx graph.
     '''
+    if s_start < 0:
+        s_start = len(pc.slice_id.unique()) + s_start + 1
+    if s_end < 0:
+        s_end = len(pc.slice_id.unique()) + s_end + 2
     slices = [*range(s_start, s_end)]
     pc = pc[pc.slice_id.isin(slices)]
     pids = [pid for pid in pc.pid]
@@ -207,7 +213,11 @@ def plot_slice(pc, centres=None,
     '''
     fig, axs = plt.subplots(1,2,figsize=(w,h))
     ax = axs.flatten()
-    for s in pc.slice_id.sort_values().unique()[start:end]:
+    if start < 0:
+        start = len(pc.slice_id.unique()) + start + 1
+    if end < 0:
+        end = len(pc.slice_id.unique()) + end + 2
+    for s in range(start, end):
         slice_pc = pc[pc.slice_id == s]
         ax[0].scatter(slice_pc.x, slice_pc.z, s=p_size, label=f'{s}')
         ax[1].scatter(slice_pc.y, slice_pc.z, s=p_size, label=f'{s}')
@@ -373,6 +383,10 @@ def plot_subSkeleton(G, pc=pd.DataFrame(), s_start=0, s_end=-1):
     Output:
         An interactive Plotly figure of a 3D nx graph.
     '''
+    if s_start < 0:
+        s_start = len(pc.slice_id.unique()) + s_start + 1
+    if s_end < 0:
+        s_end = len(pc.slice_id.unique()) + s_end + 2
     slices = [*range(s_start, s_end)]
 
     # select nodes for subgraph
