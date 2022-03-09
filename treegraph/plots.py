@@ -5,7 +5,7 @@ import plotly.graph_objects as go
 import plotly.express as px
 # %matplotlib inline
 
-def plot_3d_graph(G, pc=pd.DataFrame(), centres=pd.DataFrame(), title='self.G'):
+def plot_3d_graph(G, pc=pd.DataFrame(), centres=pd.DataFrame(), title='Initial graph'):
     '''
     Plot 3D networkx graph using Plotly.
     Inputs:
@@ -244,7 +244,7 @@ def plot_slice(pc, centres=None,
     fig.tight_layout()
 
 
-def plot_skeleton(G, pc=pd.DataFrame(), title='self.G_skeleton'):
+def plot_skeleton(G, pc=pd.DataFrame(), title='Skeleton graph', colour=True, attr='slice_id'):
     '''
     Plot skeleton graph (3D networkx graph) using Plotly.
     Inputs:
@@ -252,8 +252,15 @@ def plot_skeleton(G, pc=pd.DataFrame(), title='self.G_skeleton'):
             G.nodes has attributes of 'pos' for x,y,z coordinates and 'pid' for node id.
         pc: pd.DataFrame (optional)
             Point cloud info, contains XYZ coordinates. 
-        title: str.
+        title: str
             Title of this plot.
+        colour: bool (default is True)
+            If True then plot point cloud coloured based on attr.
+            If False then plot point cloud in grey.
+        attr: str
+            Columne name in pc df for colouring point clouds.
+            'slice_id': colour points by segment slices.
+            'node_id': colour points by clusters.
     Output:
         An interactive Plotly figure of a skeleton graph.
     '''
@@ -270,9 +277,9 @@ def plot_skeleton(G, pc=pd.DataFrame(), title='self.G_skeleton'):
             y_nodes.append(G.nodes[nid]['pos'][1])
             z_nodes.append(G.nodes[nid]['pos'][2])
 
-            # extract slice_id corresponding to the nodes
-            if 'slice_id' in G.nodes[nid].keys():
-                s = G.nodes[nid]['slice_id']
+            # extract attr corresponding to the nodes
+            if attr in G.nodes[nid].keys():
+                s = G.nodes[nid][attr]
                 labels.append(s)
     
     # create lists that contain the starting and ending coords of each edge
@@ -291,17 +298,9 @@ def plot_skeleton(G, pc=pd.DataFrame(), title='self.G_skeleton'):
             y_edges += y_coor
             z_coor = [G.nodes[nid1]['pos'][2], G.nodes[nid2]['pos'][2], None]
             z_edges += z_coor
-    
-    #create a trace for the nodes
-    trace_nodes = go.Scatter3d(x=x_nodes,
-                               y=y_nodes,
-                               z=z_nodes,
-                               mode='markers',
-                               marker=dict(symbol='circle',
-                                           size=2,
-                                           color='blue'))
-    # trace for nodes with attribute of slice_id
-    if 'slice_id' in G.nodes[nid].keys():
+       
+    # trace for nodes with attribute of attr
+    if attr in G.nodes[nid].keys():
         trace_nodes = go.Scatter3d(x=x_nodes,
                                    y=y_nodes,
                                    z=z_nodes,
@@ -312,33 +311,53 @@ def plot_skeleton(G, pc=pd.DataFrame(), title='self.G_skeleton'):
                                                colorscale=px.colors.qualitative.Plotly),
                                    text=labels,
                                    hoverinfo='text')
+    else:
+        trace_nodes = go.Scatter3d(x=x_nodes,
+                               y=y_nodes,
+                               z=z_nodes,
+                               mode='markers',
+                               marker=dict(symbol='circle',
+                                           size=2,
+                                           color='blue'))
 
     # create a trace for the edges
     trace_edges = go.Scatter3d(x=x_edges,
-                               y=y_edges,
-                               z=z_edges,
-                               mode='lines',
-                               line=dict(color='grey', width=1),
-                               hoverinfo='none')
+                            y=y_edges,
+                            z=z_edges,
+                            mode='lines',
+                            line=dict(color='grey', width=1),
+                            hoverinfo='none')
     
     if len(pc.columns) != 0:
         x = [x for x in pc.x]
         y = [y for y in pc.y]
         z = [z for z in pc.z]
-        labels_c = [s for s in pc.slice_id]
+        labels_c = [s for s in pc[attr]]
 
         # create a trace for cluster centres
-        trace_points = go.Scatter3d(x=x,
-                                     y=y,
-                                     z=z,
-                                     mode='markers',
-                                     marker=dict(symbol='circle',
-                                                 size=0.85,
-                                                 color='lightgrey',
-                                                 opacity=0.5),
-#                                                  colorscale=px.colors.qualitative.Plotly),
-                                     text=labels_c,
-                                     hoverinfo='text')
+        if colour == True:
+            trace_points = go.Scatter3d(x=x,
+                                        y=y,
+                                        z=z,
+                                        mode='markers',
+                                        marker=dict(symbol='circle',
+                                                    size=0.85,
+                                                    opacity=0.5,
+                                                    color=labels_c,
+                                                    colorscale=px.colors.qualitative.Plotly),
+                                        text=labels_c,
+                                        hoverinfo='text')
+        else:
+            trace_points = go.Scatter3d(x=x,
+                                        y=y,
+                                        z=z,
+                                        mode='markers',
+                                        marker=dict(symbol='circle',
+                                                    size=0.85,
+                                                    color='lightgrey',
+                                                    opacity=0.5),
+                                        text=labels_c,
+                                        hoverinfo='text')
     
     # set the axis for the plot 
     axis = dict(showbackground=False,
@@ -368,39 +387,54 @@ def plot_skeleton(G, pc=pd.DataFrame(), title='self.G_skeleton'):
     fig.show()
 
 
-def plot_subSkeleton(G, pc=pd.DataFrame(), s_start=0, s_end=-1):
+def plot_subSkeleton(G, pc=pd.DataFrame(), s_start=0, s_end=-1, colour=True, attr='slice_id'):
     '''
-    Plot part of skeleton graph based on given range of slice_id.
+    Plot part of skeleton graph based on given range of attr.
     Inputs:
         G: networkx graph
             G.nodes has attributes of 'pos' for x,y,z coordinates and 'pid' for node id.
         pc: pd.DataFrame
-            Point cloud info, contains X,Y,Z coords and slice_id.
+            Point cloud info, contains X,Y,Z coords and attr.
         s_start: int.
-            Starting index of slice_id, included.
+            Starting index of attr, included.
         s_end: int.
-            Last index of slice_id, not included.
+            Last index of attr, not included.
+        colour: bool (default is True)
+            If True then plot point cloud coloured in attr.
+            If False then plot point cloud in grey.
+        attr: str
+            Columne name in pc df for colouring point clouds.
+            'slice_id': colour points by segment slices.
+            'node_id': colour points by clusters.
     Output:
         An interactive Plotly figure of a 3D nx graph.
     '''
     if s_start < 0:
-        s_start = len(pc.slice_id.unique()) + s_start + 1
+        s_start = len(pc[attr].unique()) + s_start + 1
     if s_end < 0:
-        s_end = len(pc.slice_id.unique()) + s_end + 2
+        s_end = len(pc[attr].unique()) + s_end + 2
     slices = [*range(s_start, s_end)]
 
     # select nodes for subgraph
-    node_id = []
-    for nid in G.nodes():
-        if len(G.nodes[nid]) != 0:
-            s = G.nodes[nid]['slice_id']
-            if s in slices:
+    if attr == 'node_id':
+        node_id = []
+        for nid in G.nodes():
+            if nid in slices:
                 node_id.append(nid)
-    subG = G.subgraph(node_id)
+        subG = G.subgraph(node_id)
+    else:
+        node_id = []
+        for nid in G.nodes():
+            if len(G.nodes[nid]) != 0:
+                s = G.nodes[nid][attr]
+                if s in slices:
+                    node_id.append(nid)
+        subG = G.subgraph(node_id)
     
     # plot subgraph
     if len(pc.columns) == 0:
-        plot_skeleton(subG, title=f'Skeleton graph: slice [{s_start}:{s_end}]')    
+        plot_skeleton(subG, title=f'Skeleton graph: {attr} [{s_start}:{s_end}]', colour=False)    
     else:
-        pc = pc[pc.slice_id.isin(slices)]
-        plot_skeleton(subG, pc=pc, title=f'Skeleton graph: slice [{s_start}:{s_end}]') 
+        pc = pc[pc[attr].isin(slices)]
+        plot_skeleton(subG, pc=pc, title=f'Skeleton graph: {attr} [{s_start}:{s_end}]', 
+                      colour=True, attr=attr) 
