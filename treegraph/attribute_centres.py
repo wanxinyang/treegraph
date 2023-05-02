@@ -1,9 +1,8 @@
 import time
 import pandas as pd
 import numpy as np
-
 from tqdm.autonotebook import trange
-
+from pandas.api.types import CategoricalDtype
 import treegraph.distance_from_base 
 
 def run(centres, path_ids, verbose=False, branch_hierarchy=False):
@@ -51,9 +50,16 @@ def run(centres, path_ids, verbose=False, branch_hierarchy=False):
 
             tip_paths.loc[row.Index, 'nbranch'] = i 
             cyls = path_ids[row.Index]
-            centres.loc[(centres.node_id.isin(cyls)) & 
-                             (centres.nbranch == -1), 'nbranch'] = i
-            centres.loc[centres.nbranch == i, 'ncyl'] = np.arange(len(centres[centres.nbranch == i]))
+            # sort branch node_id by path list to avoid branch become its own parent
+            sorter = CategoricalDtype(cyls, ordered=True)
+            bnodes = centres[centres.node_id.isin(cyls)]
+            bnodes['node_id'] = bnodes['node_id'].astype(sorter)
+            bnodes = bnodes.sort_values('node_id')
+            bnodes.loc[bnodes.nbranch == -1, 'nbranch'] = i
+            bnodes.loc[bnodes.nbranch == i, 'ncyl'] = np.arange(len(bnodes[bnodes.nbranch == i]))
+            centres.loc[centres.node_id.isin(bnodes.node_id), 'nbranch'] = bnodes.nbranch
+            centres.loc[centres.node_id.isin(bnodes.node_id), 'ncyl'] = bnodes.ncyl
+            
             v = centres.loc[centres.nbranch == i].sort_values('ncyl').node_id
             c1 = centres.set_index('node_id').loc[v[:-1]][['cx', 'cy', 'cz']].values
             c2 = centres.set_index('node_id').loc[v[1:]][['cx', 'cy', 'cz']].values
@@ -97,7 +103,8 @@ def run(centres, path_ids, verbose=False, branch_hierarchy=False):
         pbar.update(1)
 
         # loop over branches and attribute internode
-        centres.sort_values(['nbranch', 'slice_id', 'distance_from_base'], inplace=True)
+        # centres.sort_values(['nbranch', 'slice_id', 'distance_from_base'], inplace=True)
+        centres.sort_values(['nbranch', 'ncyl'], inplace=True)
         centres.loc[:, 'ninternode'] = -1
         internode_n = 0
 
@@ -107,8 +114,24 @@ def run(centres, path_ids, verbose=False, branch_hierarchy=False):
 
         for internode in centres.ninternode.unique():
             if internode == 0: continue # first internode so ignore
-            pnode = centres.loc[centres.ninternode == internode].pnode.min()
+            # current nodes belong to this segment
+            cnode = centres[centres.ninternode == internode]
+            # pnode is the internode of the previous node of this segment
+            # the first node of a segment is ncyl=0
+            pnode = cnode[cnode.ncyl == cnode.ncyl.min()].pnode.values[0]
             centres.loc[centres.ninternode == internode, 'pinternode'] = centres.loc[centres.node_id == pnode].ninternode.item()
+
+        ## define branch order (wx adds)
+        centres.loc[:, 'norder'] = -1
+        # stem (branch order = 0)
+        centres.loc[(centres.nbranch == 0) & (centres.ninternode == 0), 'norder'] = 0
+        node_list = [0]
+        # branch order +1 after a new furcation
+        i = 1
+        while -1 in centres.norder.unique():
+            centres.loc[centres.pinternode.isin(node_list), 'norder'] = i
+            node_list = centres[centres.pinternode.isin(node_list)].ninternode.unique()
+            i += 1
 
         pbar.set_description('attributed internodes', refresh=True)
         pbar.update(1)
@@ -117,28 +140,25 @@ def run(centres, path_ids, verbose=False, branch_hierarchy=False):
         
         if branch_hierarchy:
 
-            branch_hierarchy = {0:{'all':np.array([0]), 'above':centres.nbranch.unique()[1:]}}
-
+            branch_hierarchy = {0:{'parent_branch':np.array([0]), 'above':centres.nbranch.unique()[1:]}}
+            # loop over each branch and store its parent branch id into dict
             for b in np.sort(centres.nbranch.unique()):
                 if b == 0: continue
                 parent = centres.loc[(centres.nbranch == b) & (centres.ncyl == 0)].parent.item()    
-    #             if b == parent: 
-    #                 # need to figure out why some branches are their own parents....
-    #                 # think it is because they are isolated 
-    #                 nodes = centres.loc[centres.nbranch == b].node_id.values
-    #                 centres = centres.loc[~centres.node_id.isin(nodes)]
-    #                 pc = pc.loc[~pc.node_id.isin(nodes)]
-    #                 print(b)
-    #                 continue
                 branch_hierarchy[b] = {}
-                branch_hierarchy[b]['all'] = np.hstack([[b], branch_hierarchy[parent]['all']])
+                if parent in branch_hierarchy.keys():
+                    branch_hierarchy[b]['parent_branch'] = np.hstack([[b], branch_hierarchy[parent]['parent_branch']])
+                else:  
+                    branch_hierarchy[parent] = {}
+                    branch_hierarchy[parent]['parent_branch'] = [parent]
+                    branch_hierarchy[b]['parent_branch'] = np.hstack([[b], branch_hierarchy[parent]['parent_branch']])
 
             for b in centres.nbranch.unique():
                 if b == 0: continue
                 ba = set()
                 for k, v in branch_hierarchy.items():
-                    if b not in list(v['all']): continue
-                    ba.update(set(v['all'][v['all'] > b]))
+                    if b not in list(v['parent_branch']): continue
+                    ba.update(set(v['parent_branch'][v['parent_branch'] > b]))
                 if len(ba) > 0: 
                     branch_hierarchy[b]['above'] = list(ba)
                 else:

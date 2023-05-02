@@ -1,9 +1,8 @@
 import os
-from networkx.algorithms.distance_measures import radius
 import yaml
 import argparse
 import numpy as np
-
+import pandas as pd
 import treegraph
 from treegraph import downsample
 from treegraph import distance_from_base
@@ -13,207 +12,322 @@ from treegraph import build_graph
 from treegraph import attribute_centres
 from treegraph import distance_from_tip
 from treegraph import split_furcation
-from treegraph import fit_cylinders
+from treegraph import estimate_radius
 from treegraph import taper
+from treegraph import fit_cylinders
 from treegraph import generate_cylinder_model
 from treegraph import IO
+from treegraph import common
+from treegraph.third_party import ransac_cyl_fit as fc
 from datetime import *
 
-def run(path, base_idx=None, attribute='nbranch', radius='m_radius', tip_width=None, verbose=False,
-        cluster_size=.02, min_pts=5, exponent=1, minbin=.02, maxbin=.25, output='../results/', 
-        txt_file=True, base_corr=True, save_graph=False):
 
-    self = treegraph.initialise(path,
-                                base_location=base_idx,
+def run(data_path='/path/to/pointclouds.ply', output_path='../results/TreeID/',
+        base_idx=None, min_pts=5, cluster_size=.04, tip_width=None, verbose=False,  
+        base_corr=True, filtering=False, txt_file=True, save_graph=False):
+    
+    self = treegraph.initialise(data_path=data_path,
+                                output_path=output_path,
+                                base_idx=base_idx,
                                 min_pts=min_pts,
-                                downsample=.001,
-                                exponent=exponent,
-                                minbin=minbin,
-                                maxbin=maxbin,
+                                downsample=.01,
                                 cluster_size=cluster_size,
-                                columns=['x', 'y', 'z'],
-                                verbose=verbose,
-                                attribute=attribute,
-                                radius=radius,
                                 tip_width=tip_width,
-                                output_path=output)
-    self.path = path
+                                verbose=verbose,  
+                                base_corr=base_corr,
+                                filtering=filtering,
+                                txt_file=txt_file,
+                                save_graph=save_graph)
 
     ### open a file to store result summary ###
-    fn = os.path.splitext(path)[0].split('/')[-1]
+    treeid = os.path.splitext(data_path)[0].split('/')[-1]
     dt = datetime.now()
-    print(dt)
-    sdt = dt.strftime('%Y-%m-%d_%H-%M')
+    print(f'treeid: {treeid}\nProgramme starts at: {dt}')
     cs = f'cs{cluster_size}-'
-    e = f'e{exponent}-'
-    minb = f'minb{minbin}-'
-    maxb = f'maxb{maxbin}-'
     tip = f'tip{tip_width}'
-    o_f = output + fn + '-' + cs + e + minb + maxb + tip
+    o_f = output_path + treeid + '-' + cs + tip
+    
     if txt_file:
-        inputs = f"path = {path}\nbase_idx = {base_idx}\nattribute = {attribute}\ntip_width = {tip_width}\n\
-verbose = {verbose}\ncluster_size = {cluster_size}\nminpts = {min_pts}\nexponent = {exponent}\n\
-minbin = {minbin}\nmaxbin = {maxbin}\noutput_path = {output}\ntxt_file = {txt_file}\n\
-base_correction = {base_corr}\nsave_graph = {save_graph}"
-
-        with open(o_f+'.txt', 'w') as f:
-            f.write(f'************Inputs************\n{inputs}\n')
-            f.write('\n************outputs************\n')
+        print(f'Outputs are written in a txt file:\n{o_f}.txt')
+        inputs = f"data_path = {data_path}\noutput_path = {output_path}\n\
+base_idx = {base_idx}\nmin_pts = {min_pts}\ncluster_size = {cluster_size}\n\
+tip_width = {tip_width}\nverbose = {verbose}\nbase_corr = {base_corr}\n\
+filtering = {filtering}\ntxt_file = {txt_file}\nsave_graph = {save_graph}"
+    
+    with open(o_f+'.txt', 'w') as f:
+        f.write('='*20 + 'Inputs' + '='*20 + f'\n{inputs}\n\n')
+        f.write('='*20 + 'Processing' + '='*20 +'\n')
+        f.write(f'treeid: {treeid}\nProgramme starts at: {dt}')
 
 
     ### downsample ###
     if self.downsample:
-        self.pc, self.base_location = downsample.run(self.pc, 
-                                                     self.downsample, 
-                                                     base_location=self.base_location,
-                                                     delete=True, 
-                                                     verbose=self.verbose)
+        self.pc, self.base_idx = downsample.run(self.pc, 
+                                                self.downsample, 
+                                                base_location=self.base_idx,
+                                                delete=True, 
+                                                verbose=self.verbose)
     else:
         self.pc = downsample.voxelise(self.pc)
     if txt_file:
         with open(o_f+'.txt', 'a') as f:
-            f.write("----Downsample----")
-            f.write("\nPoints after first downsample (vlength=0.001m): {}".format(len(np.unique(self.pc.index))))
+            f.write("\n\n----Downsample----")
+            f.write(f"\nPoints after downsampling (vlength = {self.downsample} m): {len(np.unique(self.pc.index))}")
 
-
-    ### build initial graph ###
-    self.pc, self.G, new_base = distance_from_base.run(self.pc, self.base_location, 
-                                                       cluster_size=self.cluster_size,
-                                                       knn=100, verbose=False, 
-                                                       base_correction=base_corr)
+    self.pc = self.pc[['x','y','z','pid']]
+    
+    ### build distance graph and calculate shortest path distance ###
+    if base_corr:
+        self.pc, self.G, new_base, basal_r = distance_from_base.run(self.pc, 
+                                                                    base_location=self.base_idx, 
+                                                                    cluster_size=self.cluster_size,
+                                                                    knn=100, 
+                                                                    verbose=False, 
+                                                                    base_correction=base_corr)
+        maxbin = basal_r * 1.6  # determine maxbin by basal radius                                                            
+    else:
+        self.pc, self.G = distance_from_base.run(self.pc, 
+                                                base_location=self.base_idx, 
+                                                cluster_size=self.cluster_size,
+                                                knn=100, verbose=False, 
+                                                base_correction=base_corr)    
+        maxbin = 0.35                                                                                                    
     if txt_file:
         with open(o_f+'.txt', 'a') as f:
-            f.write('\n\n----Build graph----')
+            f.write('\n\n----Build initial graph----')
             f.write(f'\nInitial graph has {len(self.G.nodes)} nodes and {len(self.G.edges)} edges.') 
 
 
-    ### identify skeleton and build skeleton graph ###
-    self.pc, self.bins = calculate_voxel_length.run(self.pc, exponent=self.exponent, maxbin=self.maxbin, minbin=self.minbin)
+    ### identify skeleton nodes ### 
+    # slice input point clouds
+    minbin = 0.02  # unit in meter
+    self.pc, self.bins = calculate_voxel_length.run(self.pc, exponent=1, maxbin=maxbin, minbin=minbin)
+    self.pc = self.pc[~self.pc.distance_from_base.isna()]
+    
+
+    # identify skeleton nodes by DBSCAN clustering
+    self.centres = build_skeleton.run(self, verbose=False)
+
     if txt_file:
         with open(o_f+'.txt', 'a') as f:
-            f.write('\n\n----Calculate slice segments----')
+            f.write('\n\n----Identify skeleton nodes----')
             f.write(f"\nTotal bin numbers: {len(self.bins)}")
             f.write(f"\nTotal valid slice segments: {len(np.unique(self.pc.slice_id))}")
-    
-    # identify skeleton nodes
-    self.centres = build_skeleton.run(self, verbose=True)
+            f.write('\n\n----Refine skeleton----') 
 
-    # build skeleton graph
-    self.G_skeleton, self.path_distance, self.path_ids = build_graph.run(self.centres, verbose=self.verbose)
-    if txt_file:
-        with open(o_f+'.txt', 'a') as f:
-            f.write('\n\n----Build skeleton graph----')
-            f.write(f'\nInitial skeleton graph has {len(self.G_skeleton.nodes)} nodes and {len(self.G_skeleton.edges)} edges.') 
-    
-    # attribute skeleton
-    self.centres, self.branch_hierarchy = attribute_centres.run(self.centres, self.path_ids, 
-                                                                branch_hierarchy=True, verbose=True)
-    if txt_file:
-        with open(o_f+'.txt', 'a') as f:
-            f.write('\n\n----Attributes skeleton----')  
-            f.write('\nInitial skeleton attributes...')  
-            f.write(f"\nSlices segments: {len(np.unique(self.centres.slice_id))}")
-            f.write(f"\nSkeleton points: {len(np.unique(self.centres.node_id))}")
-            f.write(f"\nTip node numbers: {len(self.centres[self.centres.is_tip == True])}")
-            f.write(f"\nTotal internodes (furcation nodes + tip nodes): {len(np.unique(self.centres.ninternode))}")
-            f.write(f"\n2-children furcation nodes: {len(self.centres.loc[self.centres['n_furcation'] == 1])}" )
-            f.write(f"\n3-children furcation nodes: {len(self.centres.loc[self.centres['n_furcation'] == 2])}" )
-            f.write(f"\n4-children + furcation nodes: {len(self.centres.loc[self.centres['n_furcation'] >= 3])}")                                                          
 
-    ### rebuild skeleton using distance from tip ###
-    self.centres, self.pc = distance_from_tip.run(self.pc, self.centres, self.bins, 
-                                                  vlength=self.cluster_size, 
-                                                  min_pts=self.min_pts, 
-                                                  verbose=True)
-    self.G_skeleton_reslice, self.path_distance, self.path_ids = build_graph.run(self.centres, verbose=self.verbose)
+    ### refine skeleton nodes ###
+    self.pc, self.centres = split_furcation.run(self.pc.copy(), self.centres.copy()) 
+    
+    ### build skeleton graph ###                                                                        
+    self.G_skel_sf, self.path_dist, self.path_ids = build_graph.run(self.pc, self.centres, verbose=self.verbose)
+    
+    ### attribute skeleton ###
     self.centres, self.branch_hierarchy = attribute_centres.run(self.centres, self.path_ids, 
-                                                                branch_hierarchy=True, verbose=True)  
+                                                                branch_hierarchy=True, verbose=False)
+    
     if base_corr:
         # adjust the coords of the 1st slice centre to the coords of new_base_node
-        idx = self.centres[self.centres.slice_id == 0].index.values[0]
-        self.centres.loc[idx, ('cx','cy','cz','distance_from_base')] = [new_base[0], new_base[1], new_base[2], 0]
-    
-    if txt_file:
-        with open(o_f+'.txt', 'a') as f:
-            f.write('\n\n----Rebuild skeleton----') 
+        if self.centres.slice_id.min() == 0:
+            idx = self.centres[self.centres.slice_id == 0].index.values[0]
+            self.centres.loc[idx, ('cx','cy','cz','distance_from_base')] = [new_base[0], new_base[1], new_base[2], 0]
+        else:
+            self.centres.loc[:, 'distance_from_base'] = self.centres.distance_from_base - self.centres.distance_from_base.min()
+            self.pc.loc[:, 'distance_from_base'] = self.pc.distance_from_base - self.pc.distance_from_base.min()
 
-    ### rebuild furcation nodes ###
-    self.centres, self.path_ids, self.branch_hierarchy = split_furcation.run(self.pc.copy(), 
-                                                                             self.centres.copy(), 
-                                                                             self.path_ids.copy(), 
-                                                                             self.branch_hierarchy.copy(),
-                                                                             verbose=True)
-    self.G_skeleton_splitf, self.path_distance, self.path_ids = build_graph.run(self.centres, verbose=self.verbose)
-     
-    self.centres, self.branch_hierarchy = attribute_centres.run(self.centres, self.path_ids, 
-                                                                branch_hierarchy=True, verbose=True)
+  
     if txt_file:
         with open(o_f+'.txt', 'a') as f:
             f.write('\n\n----Rebuild furcation nodes----')
             f.write('\nAttribute of rebuilt skeleton...')  
             f.write(f"\nSlices segments: {len(np.unique(self.centres.slice_id))}")
             f.write(f"\nSkeleton points: {len(np.unique(self.centres.node_id))}")
-            f.write(f"\nTip node numbers: {len(self.centres[self.centres.is_tip == True])}")
+
+
+    ### filter out large jump in each segmented branch ###
+    # filter out large jump at the end of a branch 
+    # run filtering through all branches
+    group_branch = self.centres.groupby('nbranch')
+    sent_back = group_branch.apply(common.filt_large_jump, bin_dict=self.bins).values
+    centres_filt = pd.DataFrame()
+    for val in sent_back:
+        if len(val) == 0:
+            continue
+        centres_filt = centres_filt.append(val)
+    
+    if filtering:
+        self.centres = centres_filt
+        if txt_file:
+            with open(o_f+'.txt', 'a') as f:
+                f.write('\n\n----Filter large jump at branch end----')
+                f.write(f'\nSkel nodes before filtering: {len(self.centres)}')
+                f.write(f'\nSkel nodes after filtering: {len(centres_filt)}')
+
+
+    # update tip nodes as some outliers have been filtered out
+    for n in self.centres.nbranch.unique():
+        lastcyl = self.centres[self.centres.nbranch == n].ncyl.max()
+        self.centres.loc[(self.centres.nbranch == n) & (self.centres.ncyl == lastcyl), 'is_tip'] = True
+    
+    
+    ### estimate branch radius ###
+    # determine the z-interval for radius estimation (unit: metre)
+    trunk = self.centres[self.centres.nbranch == 0]
+    dfb_max = trunk.distance_from_base.max() - trunk.distance_from_base.min()
+    if dfb_max <= 5: 
+        dz2 = dfb_max / 5.
+        if dfb_max <= 1.5:
+            dz2 = .3
+    else: 
+        dz2 = 1.
+    
+    # estimate radius for individual branches
+    self.centres = estimate_radius.run(self.pc, self.centres, self.path_ids, 
+                                       dz1=.3, dz2=dz2, branch_list=None, plot=False)  
+    # apply constrains to smoothed radius to avoid significant overestimated radius
+    self.centres = taper.run(self.centres, self.path_ids, tip_radius=None, est_rad='sm_radius', 
+                             branch_list=None, plot=False, verbose=False)
+    self.centres.loc[:,'sm_radius'] = self.centres.m_radius
+    
+    # identify outliers in raw estimates based on smoothed radius
+    self.centres.loc[:,'zscore'] = (self.centres.sf_radius - self.centres.sm_radius) / self.centres.sm_radius
+    threshold = np.nanpercentile(self.centres.zscore, 95)
+    outlier_id = self.centres[np.abs(self.centres.zscore) >= threshold].node_id.values
+    
+    # adjust outliers
+    self.centres.loc[self.centres.node_id.isin(outlier_id), 'sf_radius'] = self.centres[self.centres.node_id.isin(outlier_id)].sm_radius
+    
+    # apply constrains to filtered raw radius to avoid significant overestimated radius
+    self.centres = taper.run(self.centres, self.path_ids, tip_radius=tip_width, est_rad='sf_radius', 
+                             branch_list=None, plot=False, verbose=False)
+    
+    # try point-to-node dist to adjust overesitimated twig radius
+    # find node_id of last 4 cylinders of each branch
+    twig_nid = []
+    for nb in self.centres.nbranch.unique():
+        branch = self.centres[self.centres.nbranch == nb]
+        ncyls = np.sort(branch.ncyl)
+        if len(ncyls) <= 4:
+            nids = branch[branch.ncyl.isin(ncyls)].node_id.unique()
+        else:
+            nids = branch[branch.ncyl.isin(ncyls[-4:])].node_id.unique()
+        twig_nid.extend(nids)
+    # calculate point-to-node distance for all twig nodes
+    for n in twig_nid:
+        node_pts = np.array(self.pc[self.pc.node_id == n][['x','y','z']])
+        node_cen = np.array(self.centres[self.centres.node_id == n][['cx','cy','cz']])
+        dist = np.nanmedian(np.linalg.norm((node_pts - node_cen), axis=1))
+        self.centres.loc[(self.centres.node_id == n), 'p2c_dist'] = dist
+    self.centres.loc[(self.centres.m_radius > self.centres.p2c_dist), 'm_radius'] = self.centres[self.centres.m_radius > self.centres.p2c_dist].p2c_dist
+
+    # delete branch whose sf_rad are all NAN 
+    del_nid = np.array([])
+    for n in self.centres.nbranch.unique():
+        br = self.centres[self.centres.nbranch == n]
+        if br.sf_radius.isnull().values.all():
+            del_nid = np.append(del_nid, br.node_id.values)
+    self.centres = self.centres.loc[~self.centres.node_id.isin(del_nid)]
+
+    if txt_file:
+        with open(o_f+'.txt', 'a') as f:
+            f.write('\n\n----Estimate branch radius----')
+            f.write(f"\nEstimated radius:\n{self.centres.m_radius.describe()}")
+    
+    self.pc = self.pc[self.pc.node_id.isin(self.centres.node_id.values)]
+    # re-build skeleton graph                                                                        
+    self.G_skel_sf, self.path_dist, self.path_ids = build_graph.run(self.pc, self.centres, verbose=self.verbose)
+    # re-attribute skeleton 
+    self.centres, self.branch_hierarchy = attribute_centres.run(self.centres, self.path_ids, 
+                                                                branch_hierarchy=True, verbose=self.verbose)
+
+
+    ### generate cylinder model ###
+    generate_cylinder_model.run(self, radius_value='m_radius')
+
+    if txt_file:
+        with open(o_f+'.txt', 'a') as f:
+            f.write('\n\n----Generate cylinder model----')
+            f.write('\nModelling complete.\n')
+ 
+    
+    ### Result Summary ###
+    ## tree-level statistics
+    tree = self.cyls[['length', 'vol', 'surface_area']].sum().to_dict()
+    tree['H_from_clouds'] = round((self.pc.z.max() - self.pc.z.min()), 2)
+    tree['H_from_qsm'] = round((self.cyls.sz.max() - self.cyls.sz.min()), 2)
+    tree['N_tip'] = len(self.cyls[self.cyls.is_tip])
+    tree['tip_rad_mean'] = self.cyls[self.cyls.is_tip].radius.mean()
+    tree['tip_rad_std'] = self.cyls[self.cyls.is_tip].radius.std()
+
+    if len(self.centres.loc[self.centres.is_tip]) > 1:
+        tree['dist_between_tips'] = common.nn(self.centres.loc[self.centres.is_tip][['cx', 'cy', 'cz']].values, N=1).mean()
+    else: tree['dist_between_tips'] = np.nan
+        
+    ## DBH estimation
+    dbh_clouds, dbh_qsm = common.dbh_est(self, verbose=False, plot=False)
+    tree['DBH_from_clouds'] = dbh_clouds
+    tree['DBH_from_qsm'] = dbh_qsm
+
+    ## trunk info
+    trunk_nid = self.centres[self.centres.nbranch == 0].node_id.values
+    for i in range(len(trunk_nid)-1):
+        if i == 0:
+            trunk = self.cyls[(self.cyls.p1 == trunk_nid[i+1]) & (self.cyls.p2 == trunk_nid[i])]
+        else:
+            trunk = trunk.append(self.cyls[(self.cyls.p1 == trunk_nid[i+1]) & (self.cyls.p2 == trunk_nid[i])]) 
+    tree['trunk_vol'] = trunk.vol.sum()
+    tree['trunk_length'] = trunk.length.sum()
+
+    # ## stem info (tree base to first branching node)
+    # trunk = self.centres[self.centres.nbranch == 0].sort_values(by=['ncyl'])
+    # fur_nid =  trunk[self.centres.n_furcation > 0].node_id.values[0]
+    # # stem_nid = self.path_ids[fur_nid]
+    # stem_nid = self.path_ids[str(float(fur_nid))]
+    # stem_pc = self.pc[self.pc.node_id.isin(stem_nid)]
+    # for i in range(len(stem_nid)-1):
+    #     if i == 0:
+    #         stem_cyls = self.cyls[(self.cyls.p1 == stem_nid[i+1]) & (self.cyls.p2 == stem_nid[i])]
+    #     else:
+    #         stem_cyls = stem_cyls.append(self.cyls[(self.cyls.p1 == stem_nid[i+1]) & 
+    #                                     (self.cyls.p2 == stem_nid[i])])
+    # tree['stem_vol'] = stem_cyls.vol.sum()
+    # tree['stem_length'] = stem_cyls.length.sum()
+
+    self.tree = pd.DataFrame(data=tree, index=[0])
+    
+    ## programme running time
+    e_dt = datetime.now()
+    self.time = (e_dt - dt).total_seconds()
+
+    if txt_file:
+        with open(o_f+'.txt', 'a') as f:
+            f.write('\n\n' + '='*20 + 'Statistical summary' + '='*20 )
+            f.write(f"\nH from clouds: {tree['H_from_clouds']:.2f} m")
+            f.write(f"\nH from qsm: {tree['H_from_qsm']:.2f} m")
+            f.write(f"\nDBH from clouds: {tree['DBH_from_clouds']:.3f} m")
+            f.write(f"\nDBH from qsm: {tree['DBH_from_qsm']:.3f} m")
+            f.write(f"\nTot. branch len: {tree['length']:.2f} m")
+            f.write(f"\nTot. volume: {tree['vol']:.4f} m³ = {tree['vol']*1e3:.1f} L")
+            f.write(f"\nTot. surface area: {tree['surface_area']:.4f} m2")
+            f.write(f"\nTrunk len: {tree['trunk_length']:.2f} m")
+            f.write(f"\nTrunk volume: {tree['trunk_vol']:.4f} m³ = {tree['trunk_vol']*1e3:.1f} L")
+            # f.write(f"\nStem len: {tree['stem_length']:.2f} m")
+            # f.write(f"\nStem volume: {tree['stem_vol']:.4f} m³ = {tree['stem_vol']*1e3:.1f} L")
+            f.write(f"\nN tips: {tree['N_tip']:.0f}")
+            f.write(f"\nAvg tip width: {tree['tip_rad_mean']*2:.3f} ± {tree['tip_rad_std']*2:.3f} m")
+            f.write(f"\nAvg distance between tips: {tree['dist_between_tips']:.3f} m")     
             f.write(f"\nTotal internodes (furcation nodes + tip nodes): {len(np.unique(self.centres.ninternode))}")
             f.write(f"\n2-children furcation nodes: {len(self.centres.loc[self.centres['n_furcation'] == 1])}" )
             f.write(f"\n3-children furcation nodes: {len(self.centres.loc[self.centres['n_furcation'] == 2])}" )
             f.write(f"\n4-children + furcation nodes: {len(self.centres.loc[self.centres['n_furcation'] >= 3])}") 
-    
-    
-    # delete single cylinder branches
-    idx = self.centres.loc[(self.centres.ncyl == 0) & (self.centres.is_tip)].index
-    self.centres = self.centres.loc[~self.centres.index.isin(idx)]
-    if txt_file:
-        with open(o_f+'.txt', 'a') as f:
-            f.write(f'\n\nDelete single cyl branches: {len(idx)}')
-    
-    
-    # generate cylinders and apply taper function
-    self.centres = fit_cylinders.run(self.pc.copy(), self.centres.copy(), 
-                                     min_pts=self.min_pts, 
-                                     ransac_iterations=5,
-                                     verbose=self.verbose)
-    if txt_file:
-        with open(o_f+'.txt', 'a') as f:
-            f.write('\n\n----Fit cylinders----')
-            f.write(f"\nsf_radius:\n{self.centres.sf_radius.describe()}")
+            f.write('\n' + '='*40 + '\n')
+            f.write(f'\nProgramme successfully completed.')
+            m, s = divmod(self.time, 60)
+            h, m = divmod(m, 60)
+            f.write(f'\nTotal running time: {self.time:.0f}s = {h:.0f}h:{m:02.0f}m:{s:02.0f}s\n')
 
-    self.centres.loc[:, 'distance_from_base'] = self.centres.node_id.map(self.path_distance)
-    # self.centres = taper.run(self.centres, self.path_ids, tip_radius=.001)
-    self.centres = taper.run(self.centres, self.path_ids, tip_radius=None if tip_width is None else tip_width / 2)
-    if txt_file:
-        with open(o_f+'.txt', 'a') as f:
-            f.write('\n\n----Smooth radii based on a taper function----')
-            f.write(f"\nm_radius:\n{self.centres.m_radius.describe()}")
-    
-    
-    ### generate cylinder model ###
-    generate_cylinder_model.run(self, radius_value=radius)
-    if txt_file:
-        with open(o_f+'.txt', 'a') as f:
-            f.write('\n\n----Generate cylinder model----')
-
-    # del nan values
-    index = self.cyls.loc[self.cyls.radius.isnull() == True].index
-    if txt_file:
-        with open(o_f+'.txt', 'a') as f:
-            f.write(f'\n{len(index)} self.cyls.radius is nan.')
-    self.cyls = self.cyls.drop(index)
-
-    index = self.cyls.loc[self.cyls.ax.isnull() == True].index
-    if txt_file:
-        with open(o_f+'.txt', 'a') as f:
-            f.write(f'\n{len(index)} self.cyls.ax is nan.')
-    self.cyls = self.cyls.drop(index)
-    if txt_file:
-        with open(o_f+'.txt', 'a') as f:
-            f.write(f'\n{len(self.cyls)} cylinders are valid.')
-
-
-    ### save cyl model and skeleton nodes into files ###
-    e_dt = datetime.now()
-    self.time = (e_dt - dt).total_seconds()
-
+    ### save results ### 
+    # save cyl model into a .ply file
     fn_cyls = o_f + '.mesh.ply'
     IO.to_ply(self.cyls, fn_cyls)
     if txt_file:
@@ -221,56 +335,27 @@ base_correction = {base_corr}\nsave_graph = {save_graph}"
             f.write('\n\n----Save results----')
             f.write(f'\nMesh (cylinder) model has been saved in:\n{fn_cyls}\n')
 
+    # save skeleton nodes into a .ply file
     fn_centres = o_f + '.centres.ply'
     IO.save_centres(self.centres, fn_centres)
     if txt_file:
         with open(o_f+'.txt', 'a') as f:
             f.write(f'\nSkeleton points have been saved in:\n{fn_centres}\n')
 
+    # save all results into a json file
+    for col in ['idx', 'scalar_intensity', 'pid', 'centre_id', 'zscore']:
+        if col in self.centres.columns:
+            self.centres = self.centres.drop(columns=[col])
+        if col in self.pc.columns:
+            self.pc = self.pc.drop(columns=[col])
+    self.path_ids = {float(key): [float(i) for i in value] for key, value in self.path_ids.items()}
+    
     fn_json = o_f + '.json'
-    IO.qsm2json(self, fn_json, name=fn, graph=save_graph)
+    IO.qsm2json(self, fn_json, name=treeid, graph=save_graph)
     if txt_file:
         with open(o_f+'.txt', 'a') as f:
             f.write(f'\nJson file:\n{fn_json}\n')
- 
-    
-    ### Result Summary ###
-    # estimate DBH from cylinder model
-    slice_id = self.pc.loc[np.abs(self.pc.z - self.pc.z.min() -1.3) <=.1].slice_id.unique()
-    node_id = self.centres.loc[self.centres['slice_id'].isin(slice_id)].node_id.unique()
-    r = self.cyls.loc[self.cyls['p1'].isin(node_id)].radius
-    dbh = np.nanmean(2*r)
-
-    # tree level attributes
-    if txt_file:
-        with open(o_f+'.txt', 'a') as f:
-            f.write('\n\n==== Summary: Tree Level Attributes ====')
-            f.write(f'\nTree volume: {self.cyls.vol.sum():.5f} m³ = {self.cyls.vol.sum()*1e3:.2f} L')
-            f.write(f'\nTree height: {round((max(self.cyls.sz) - min(self.cyls.sz)),2)} m')
-            f.write(f'\nDBH: {round(dbh,2)} m')
-            f.write(f'\nBranch numbers: {len(self.cyls.nbranch.unique())}')
-            f.write(f'\nBranch length: {self.cyls.length.sum():.2f} m')
-            f.write(f'\nBranch surface area: {self.cyls.surface_area.sum():.2f} ㎡')
             
-            f.write(f"\n\nSlices segments: {len(np.unique(self.centres.slice_id))}")
-            f.write(f"\nSkeleton points: {len(np.unique(self.centres.node_id))}")
-            f.write(f'\nFitted cylinder numbers: {len(self.cyls)}')
-            
-            f.write(f"\nTip node numbers: {len(self.cyls[self.centres.is_tip == True])}")
-            f.write(f"\nmean tip diameter: {self.cyls[self.cyls.is_tip].radius.mean()*100:.2f} cm")
-            f.write(f"\nstd tip diameter: {self.cyls[self.cyls.is_tip].radius.std()*100:.2f} cm")
-        
-            f.write(f"\nTotal internodes (furcation nodes + tip nodes): {len(np.unique(self.centres.ninternode))}")
-            f.write(f"\n2-children furcation nodes: {len(self.centres.loc[self.centres['n_furcation'] == 1])}" )
-            f.write(f"\n3-children furcation nodes: {len(self.centres.loc[self.centres['n_furcation'] == 2])}" )
-            f.write(f"\n4-children + furcation nodes: {len(self.centres.loc[self.centres['n_furcation'] >= 3])}") 
-
-        with open(o_f+'.txt', 'a') as f:
-            f.write(f'\n\nProgramme successfully completed.')
-            m, s = divmod(self.time, 60)
-            h, m = divmod(m, 60)
-            f.write(f'\nTotal running time: {self.time:.0f}s = {h:.0f}h:{m:02.0f}m:{s:02.0f}s')
-
 
 if __name__ == "__main__":
     
@@ -283,18 +368,14 @@ if __name__ == "__main__":
         for key, item in args.items():
             print(f'{key}: {item}')
             
-    run(args['data_path'], 
+    run(data_path=args['data_path'], 
+        output_path=args['output_path'],
         base_idx=args['base_idx'],
-        attribute=args['attribute'], 
-        radius=args['radius'],
+        min_pts=args['min_pts'], 
+        cluster_size=args['cluster_size'], 
         tip_width=args['tip_width'], 
         verbose=args['verbose'],
-        cluster_size=args['cluster_size'], 
-        min_pts=args['minpts'], 
-        exponent=args['exponent'], 
-        minbin=args['minbin'],
-        maxbin=args['maxbin'],
-        output=args['output_path'],
-        txt_file=args['txt_file'],
         base_corr=args['base_corr'],
+        filtering=args['filtering'],
+        txt_file=args['txt_file'],
         save_graph=args['save_graph'])

@@ -100,7 +100,9 @@ def array_to_graph(arr, base_id, kpairs, knn, nbrs_threshold,
     step_register[base_id] = current_step
 
     # Looping while there are still indices (idx) left to process.
-    while idx.shape[0] > 0:
+    # while idx.shape[0] > 0:
+    # wx updated to avoid infinite loop
+    while (idx.shape[0] > 0) & (nbrs_threshold < .5):  
         
         # Increasing a single step count.
         current_step += 1

@@ -23,7 +23,7 @@ def run(pc, exponent=2, minbin=.005, maxbin=.02):
             n += 1
         else: n -= 1
     
-    # merge the first three bin widths to enlarge the range of distance_from_base in 1st slice (the base) 
+    # merge the first two bin widths to enlarge the range of distance_from_base in 1st slice (the base) 
     bins_w = bins[3:]
     bins_w = np.insert(bins_w, 0, [bins[0]+bins[1]+bins[2]])
 

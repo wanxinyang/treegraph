@@ -1,11 +1,12 @@
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
+from matplotlib.patches import Circle
 from sklearn.decomposition import PCA 
 from scipy import optimize
 from scipy.spatial.transform import Rotation 
-
+from scipy.stats import variation
 from tqdm.autonotebook import tqdm
-
 from treegraph.third_party.available_cpu_count import available_cpu_count
 from pandarallel import pandarallel
 
@@ -29,7 +30,8 @@ def run(pc, centres,
                            use_memory_fs=True,
                            nb_workers=min(len(centres), nb_workers))
     
-    cyl = groupby_.parallel_apply(RANSAC_helper, ransac_iterations, sample)
+    # cyl = groupby_.parallel_apply(RANSAC_helper, ransac_iterations)
+    cyl = groupby_.parallel_apply(RANSAC_helper_2, ransac_iterations, pc, centres)
 
     cyl = cyl.reset_index()
     cyl.columns=['node_id', 'result']
@@ -47,8 +49,8 @@ def run(pc, centres,
 #     centres.cy = centres.sf_cy
 #     centres.cz = centres.sf_cz
     return centres
-    
-def other_cylinder_fit2(xyz):
+
+def other_cylinder_fit2(xyz, xm=0, ym=0, xr=0, yr=0, r=1):
     
     from scipy.optimize import leastsq
     
@@ -58,7 +60,6 @@ def other_cylinder_fit2(xyz):
     This is a fitting for a vertical cylinder fitting
     Reference:
     http://www.int-arch-photogramm-remote-sens-spatial-inf-sci.net/XXXIX-B5/169/2012/isprsarchives-XXXIX-B5-169-2012.pdf
-
     xyz is a matrix contain at least 5 rows, and each row stores x y z of a cylindrical surface
     p is initial values of the parameter;
     p[0] = Xc, x coordinate of the cylinder centre
@@ -66,87 +67,100 @@ def other_cylinder_fit2(xyz):
     P[2] = alpha, rotation angle (radian) about the x-axis
     P[3] = beta, rotation angle (radian) about the y-axis
     P[4] = r, radius of the cylinder
-
     th, threshold for the convergence of the least squares
-
     """   
     
-    xm = np.median(xyz.z)
-    ym = np.median(xyz.y)
-    
-    p = np.array([xm, # x centre
-                  ym, # y centre
-                  0, # alpha, rotation angle (radian) about the x-axis
-                  0, # beta, rotation angle (radian) about the y-axis
-                  np.ptp(xyz.z) / 2
-                  ])
-
-    x = xyz.z
+    x = xyz.x
     y = xyz.y
-    z = xyz.x
+    z = xyz.z
+    
+    p = np.array([xm, ym, xr, yr, r])
 
     fitfunc = lambda p, x, y, z: (- np.cos(p[3])*(p[0] - x) - z*np.cos(p[2])*np.sin(p[3]) - np.sin(p[2])*np.sin(p[3])*(p[1] - y))**2 + (z*np.sin(p[2]) - np.cos(p[2])*(p[1] - y))**2 #fit function
     errfunc = lambda p, x, y, z: fitfunc(p, x, y, z) - p[4]**2 #error function 
 
     est_p, success = leastsq(errfunc, p, args=(x, y, z), maxfev=1000)
-
-    x, y, a, b, rad = est_p
-    centre = np.array([x, y])
-
-    return np.abs(rad), centre
-
-def RANSACcylinderFitting3(xyz, iterations, N):
     
-    bestFit = None
-    bestErr = 99999
+    return est_p
+
+def RANSACcylinderFitting4(xyz_, iterations=50, plot=False):
     
-    try:
-        for i in range(iterations):
+    if plot:
+        ax = plt.subplot(111)
+    
+    bestFit, bestErr = None, np.inf
+    xyz_mean = xyz_.mean(axis=0)
+    xyz_ -= xyz_mean
 
-            idx = np.random.choice(xyz.index, 
-                                   size=min(max(10, int(len(xyz) / 10)), N) * 2,
-                                   replace=False)
-            sample = xyz.loc[idx][['x', 'y', 'z']].copy()
-            pca = PCA(n_components=3, svd_solver='auto').fit(sample)
-            sample[['x', 'y', 'z']] = pca.transform(sample)
+#     for i in tqdm(range(iterations), total=iterations, display=plot):
+    for i in range(iterations):
+        
+        xyz = xyz_.copy()
+        
+        # prepare sample 
+        sample = xyz.sample(n=20)
+        # sample = xyz.sample(n=max(20, int(len(xyz)*.2))) 
+        xyz = xyz.loc[~xyz.index.isin(sample.index)]
+        
+        x, y, a, b, radius = other_cylinder_fit2(sample, 0, 0, 0, 0, 0)
+        centre = (x, y)
+        if not np.all(np.isclose(centre, 0, atol=radius*1.05)): continue
+        
+        MX = Rotation.from_euler('xy', [a, b]).inv()
+        xyz[['x', 'y', 'z']] = MX.apply(xyz)
+        xyz.loc[:, 'error'] = np.linalg.norm(xyz[['x', 'y']] - centre, axis=1) / radius
+        idx = xyz.loc[xyz.error.between(.8, 1.2)].index # 40% of radius is prob quite large
+        
+        # select points which best fit model from original dataset
+        alsoInliers = xyz_.loc[idx].copy()
+        if len(alsoInliers) < len(xyz_) * .2: continue # skip if no enough points chosen
+        
+        # refit model using new params
+        x, y, a, b, radius = other_cylinder_fit2(alsoInliers, x, y, a, b, radius)
+        centre = [x, y]
+        if not np.all(np.isclose(centre, 0, atol=radius*1.05)): continue
 
-            maybeInliers = sample.loc[idx[:int(len(idx) / 2)]].copy()
-            possibleInliers = sample.loc[~sample.index.isin(maybeInliers.index)].copy()
+        MX = Rotation.from_euler('xy', [a, b]).inv()
+        alsoInliers[['x', 'y', 'z']] = MX.apply(alsoInliers[['x', 'y', 'z']])
+        # calculate error for "best" subset
+        alsoInliers.loc[:, 'error'] = np.linalg.norm(alsoInliers[['x', 'y']] - centre, axis=1) / radius      
 
-            radius, centre = other_cylinder_fit2(maybeInliers)
-            
-            if not sample.z.min() - radius < centre[0] < sample.z.max() + radius or \
-               not sample.y.min() - radius < centre[1] < sample.y.max() + radius: continue
-            
-            error = np.abs(np.linalg.norm(possibleInliers[['z', 'y']] - centre, axis=1)) - radius
-            alsoInliers = possibleInliers.loc[error < radius * .1] # 10% of radius is prob quite large
+        if variation(alsoInliers.error) < bestErr:
+        
+            # for testing uncomment
+            c = Circle(centre, radius=radius, facecolor='none', edgecolor='g')
 
-            # if 10% of potential inliers are actual inliers
-            if len(alsoInliers) > len(possibleInliers) * .1:
-                
-                allInliers = maybeInliers.append(alsoInliers)
-                radius, centre = other_cylinder_fit2(allInliers)
-                
-                if not sample.z.min() - radius < centre[0] < sample.z.max() + radius or \
-                   not sample.y.min() - radius < centre[1] < sample.y.max() + radius: continue
-                
-                error = np.linalg.norm(allInliers[['z', 'y']] - centre, axis=1) - radius
-
-                if error.mean() < bestErr:
-
-                    centre = np.hstack([sample.x.mean(), centre])
-                    centre = pca.inverse_transform(centre)
-
-                    bestFit = [radius, centre]
-                    bestErr = error.mean()
-    except:
-        bestFit = [np.nan, xyz[['x', 'y', 'z']].mean(axis=0).vales]
+            bestFit = [radius, centre, c, alsoInliers, MX]
+            bestErr = variation(alsoInliers.error)
 
     if bestFit == None: 
         # usually caused by low number of ransac iterations
-        bestFit = [np.nan, xyz[['x', 'y', 'z']].mean(axis=0)]
+        return np.nan, xyz[['x', 'y', 'z']].mean(axis=0).values, np.inf, len(xyz_)
+    
+    radius, centre, c, alsoInliers, MX = bestFit
+    centre[0] += xyz_mean.x
+    centre[1] += xyz_mean.y
+    centre = centre + [xyz_mean.z]
+    
+    # for testing uncomment
+    if plot:
         
-    return bestFit
+        radius, Centre, c, alsoInliers, MX = bestFit
+
+        xyz_[['x', 'y', 'z']] = MX.apply(xyz_)
+        xyz_ += xyz_mean
+        ax.scatter(xyz_.x, xyz_.y,  s=1, c='grey')
+
+        alsoInliers[['x', 'y', 'z']] += xyz_mean
+        cbar = ax.scatter(alsoInliers.x, alsoInliers.y, s=10, c=alsoInliers.error)
+        plt.colorbar(cbar)
+
+        ax.scatter(Centre[0], Centre[1], marker='+', s=100, c='r')
+        ax.add_patch(c)
+        ax.axis('equal')
+
+
+    return [radius, centre, bestErr, len(xyz_)]
 
 def NotRANSAC(xyz):
     
@@ -164,25 +178,202 @@ def NotRANSAC(xyz):
         
         centre = pca.inverse_transform(centre)
     except:
-        radius, centre = [np.nan, xyz[['x', 'y', 'z']].mean(axis=0).vales]
+        radius, centre = np.nan, xyz[['x', 'y', 'z']].mean(axis=0).values
     
-    return [radius, centre]
+    return [radius, centre, np.inf, len(xyz)]
 
-def RANSAC_helper(xyz, ransac_iterations, sample):
 
-    try:
+def RANSAC_helper_2(dcluster, ransac_iterations, pc, centres, plot=False):
+    # node_id of current cluster
+    nid = np.unique(dcluster.node_id)[0]
+    # branch_id of current centre node 
+    nbranch = centres[centres.node_id == nid].nbranch.values[0]
+    # number of centres (segments) of this branch
+    nseg = len(centres[centres.nbranch == nbranch])
+    # the sequence id of current centre node in its branch
+    ncyl = centres[centres.node_id == nid].ncyl.values[0]
+    # print(f'node_id = {nid}, nbranch = {nbranch}, nseg = {nseg}, ncyl = {ncyl}')
+
+    # sample points for cyl fitting
+    if nseg == 1:
+        samples = dcluster
+    if ncyl == 0:  # the first segment of this branch
+        node_list = centres[(centres.nbranch == nbranch) & (centres.ncyl.isin([0,1]))].node_id.values
+        samples = pc[pc.node_id.isin(node_list)]
+    if ncyl == (nseg-1):  # the last segment of this branch
+        node_list = centres[(centres.nbranch == nbranch) & (centres.ncyl.isin([nseg-2,nseg-1]))].node_id.values
+        samples = pc[pc.node_id.isin(node_list)]
+    else:
+        node_list = centres[(centres.nbranch == nbranch) & (centres.ncyl.isin([ncyl-1,ncyl+1]))].node_id.values
+        samples = pc[pc.node_id.isin(node_list)]
+    
+    # fit cyl to samples using RANSAC
+    if len(samples) == 0: # don't think this is required but....
+        cylinder = [np.nan, np.array([np.inf, np.inf, np.inf]), np.inf, len(samples)]
+    elif len(samples) <= 10:
+        cylinder = [np.nan, samples[['x', 'y', 'z']].mean(axis=0).values, np.inf, len(samples)]
+    elif len(samples) <= 20:
+        cylinder = NotRANSAC(samples)
+    else:
+        cylinder = RANSACcylinderFitting4(samples[['x', 'y', 'z']], iterations=ransac_iterations, plot=plot)
+
+    return cylinder
+
+
+def RANSAC_helper(xyz, ransac_iterations, plot=False):
+#     try:
         if len(xyz) == 0: # don't think this is required but....
-            cylinder = [np.nan, np.array([np.inf, np.inf, np.inf])]
-        elif len(xyz) < 10:
-            cylinder = [np.nan, xyz[['x', 'y', 'z']].mean(axis=0).values]
-        elif len(xyz) < 50:
+            cylinder = [np.nan, np.array([np.inf, np.inf, np.inf]), np.inf, len(xyz)]
+        elif len(xyz) <= 10:
+            cylinder = [np.nan, xyz[['x', 'y', 'z']].mean(axis=0).values, np.inf, len(xyz)]
+        elif len(xyz) <= 20:
             cylinder = NotRANSAC(xyz)
         else:
-            cylinder = RANSACcylinderFitting3(xyz, ransac_iterations, sample)
+            cylinder = RANSACcylinderFitting4(xyz[['x', 'y', 'z']], iterations=ransac_iterations, plot=plot)
 #             if cylinder == None: # again not sure if this is necessary...
 #                 cylinder = [np.nan, xyz[['x', 'y', 'z']].mean(axis=0)]
                 
-    except:
-        cylinder = [np.nan, xyz[['x', 'y', 'z']].mean(axis=0)]
+#     except:
+#         cylinder = [np.nan, xyz[['x', 'y', 'z']].mean(axis=0), np.inf, np.inf]
 
-    return cylinder
+        return cylinder
+
+
+# def other_cylinder_fit2(xyz):
+    
+#     from scipy.optimize import leastsq
+    
+#     """
+#     https://stackoverflow.com/a/44164662/1414831
+    
+#     This is a fitting for a vertical cylinder fitting
+#     Reference:
+#     http://www.int-arch-photogramm-remote-sens-spatial-inf-sci.net/XXXIX-B5/169/2012/isprsarchives-XXXIX-B5-169-2012.pdf
+
+#     xyz is a matrix contain at least 5 rows, and each row stores x y z of a cylindrical surface
+#     p is initial values of the parameter;
+#     p[0] = Xc, x coordinate of the cylinder centre
+#     P[1] = Yc, y coordinate of the cylinder centre
+#     P[2] = alpha, rotation angle (radian) about the x-axis
+#     P[3] = beta, rotation angle (radian) about the y-axis
+#     P[4] = r, radius of the cylinder
+
+#     th, threshold for the convergence of the least squares
+
+#     """   
+    
+#     xm = np.median(xyz.z)
+#     ym = np.median(xyz.y)
+    
+#     p = np.array([xm, # x centre
+#                   ym, # y centre
+#                   0, # alpha, rotation angle (radian) about the x-axis
+#                   0, # beta, rotation angle (radian) about the y-axis
+#                   np.ptp(xyz.z) / 2
+#                   ])
+
+#     x = xyz.z
+#     y = xyz.y
+#     z = xyz.x
+
+#     fitfunc = lambda p, x, y, z: (- np.cos(p[3])*(p[0] - x) - z*np.cos(p[2])*np.sin(p[3]) - np.sin(p[2])*np.sin(p[3])*(p[1] - y))**2 + (z*np.sin(p[2]) - np.cos(p[2])*(p[1] - y))**2 #fit function
+#     errfunc = lambda p, x, y, z: fitfunc(p, x, y, z) - p[4]**2 #error function 
+
+#     est_p, success = leastsq(errfunc, p, args=(x, y, z), maxfev=1000)
+
+#     x, y, a, b, rad = est_p
+#     centre = np.array([x, y])
+
+#     return np.abs(rad), centre
+
+# def RANSACcylinderFitting3(xyz, iterations, N):
+    
+#     bestFit = None
+#     bestErr = 99999
+    
+#     try:
+#         for i in range(iterations):
+
+#             idx = np.random.choice(xyz.index, 
+#                                    size=min(max(10, int(len(xyz) / 10)), N) * 2,
+#                                    replace=False)
+#             sample = xyz.loc[idx][['x', 'y', 'z']].copy()
+#             pca = PCA(n_components=3, svd_solver='auto').fit(sample)
+#             sample[['x', 'y', 'z']] = pca.transform(sample)
+
+#             maybeInliers = sample.loc[idx[:int(len(idx) / 2)]].copy()
+#             possibleInliers = sample.loc[~sample.index.isin(maybeInliers.index)].copy()
+
+#             radius, centre = other_cylinder_fit2(maybeInliers)
+            
+#             if not sample.z.min() - radius < centre[0] < sample.z.max() + radius or \
+#                not sample.y.min() - radius < centre[1] < sample.y.max() + radius: continue
+            
+#             error = np.abs(np.linalg.norm(possibleInliers[['z', 'y']] - centre, axis=1)) - radius
+#             alsoInliers = possibleInliers.loc[error < radius * .1] # 10% of radius is prob quite large
+
+#             # if 10% of potential inliers are actual inliers
+#             if len(alsoInliers) > len(possibleInliers) * .1:
+                
+#                 allInliers = maybeInliers.append(alsoInliers)
+#                 radius, centre = other_cylinder_fit2(allInliers)
+                
+#                 if not sample.z.min() - radius < centre[0] < sample.z.max() + radius or \
+#                    not sample.y.min() - radius < centre[1] < sample.y.max() + radius: continue
+                
+#                 error = np.linalg.norm(allInliers[['z', 'y']] - centre, axis=1) - radius
+
+#                 if error.mean() < bestErr:
+
+#                     centre = np.hstack([sample.x.mean(), centre])
+#                     centre = pca.inverse_transform(centre)
+
+#                     bestFit = [radius, centre]
+#                     bestErr = error.mean()
+#     except:
+#         bestFit = [np.nan, xyz[['x', 'y', 'z']].mean(axis=0).vales]
+
+#     if bestFit == None: 
+#         # usually caused by low number of ransac iterations
+#         bestFit = [np.nan, xyz[['x', 'y', 'z']].mean(axis=0)]
+        
+#     return bestFit
+
+# def NotRANSAC(xyz):
+    
+#     try:
+#         xyz = xyz[['x', 'y', 'z']]
+#         pca = PCA(n_components=3, svd_solver='auto').fit(xyz)
+#         xyz[['x', 'y', 'z']] = pca.transform(xyz)
+#         radius, centre = other_cylinder_fit2(xyz)
+        
+#         if xyz.z.min() - radius < centre[0] < xyz.z.max() + radius or \
+#            xyz.y.min() - radius < centre[1] < xyz.y.max() + radius: 
+#             centre = np.hstack([xyz.x.mean(), centre])
+#         else:
+#             centre = xyz.mean().values
+        
+#         centre = pca.inverse_transform(centre)
+#     except:
+#         radius, centre = [np.nan, xyz[['x', 'y', 'z']].mean(axis=0).vales]
+    
+#     return [radius, centre]
+
+# def RANSAC_helper(xyz, ransac_iterations, sample):
+
+#     try:
+#         if len(xyz) == 0: # don't think this is required but....
+#             cylinder = [np.nan, np.array([np.inf, np.inf, np.inf])]
+#         elif len(xyz) < 10:
+#             cylinder = [np.nan, xyz[['x', 'y', 'z']].mean(axis=0).values]
+#         elif len(xyz) < 50:
+#             cylinder = NotRANSAC(xyz)
+#         else:
+#             cylinder = RANSACcylinderFitting3(xyz, ransac_iterations, sample)
+# #             if cylinder == None: # again not sure if this is necessary...
+# #                 cylinder = [np.nan, xyz[['x', 'y', 'z']].mean(axis=0)]
+                
+#     except:
+#         cylinder = [np.nan, xyz[['x', 'y', 'z']].mean(axis=0)]
+
+#     return cylinder

@@ -6,24 +6,23 @@ from treegraph.third_party.ply_io import *
 
 class initialise:
     
-    def __init__(self, pc, 
-                 downsample=None,
-                 min_pts=3, 
-                 exponent=2.0,
-                 minbin=.02,
-                 maxbin=.5,   
+    def __init__(self, 
+                 data_path='/path/to/pointclouds.ply', 
+                 output_path='/path/to/outputs/',
+                 base_idx=None,
+                 min_pts=10, 
+                 downsample=.001,
                  cluster_size=.04,
-                 base_location=None, 
-                 columns=['x', 'y', 'z'],
-                 verbose=False,
-                 attribute='nbranch',
-                 radius='m_radius',
                  tip_width=None,
-                 output_path='./'):
-
-        
+                 verbose=False,
+                 base_corr=True,
+                 filtering=True,
+                 txt_file=True,
+                 save_graph=False
+                 ):
+    
         """
-        pc: pandas dataframe or path to point cloud in .ply or .txt format
+        data_path: pandas dataframe or path to point cloud in .ply or .txt format
             If pandas dataframe, columns ['x', 'y', 'z'] must be present.
         downsample: None or float.
             If value is a float the point cloud will be downsampled before
@@ -40,6 +39,7 @@ class initialise:
         self.downsample = downsample
         
         # read in data
+        pc = data_path
         if isinstance(pc, pd.DataFrame):
             if np.all([c in pc.columns for c in ['x', 'y', 'z']]):
                 self.pc = pc
@@ -58,16 +58,16 @@ class initialise:
             raise Exception('pc is not a pandas dataframe nor a path to point cloud')
                     
 #         self.slice_interval=slice_interval
-        self.min_pts = min_pts
-        self.exponent = exponent
-        self.minbin = minbin
-        self.maxbin = maxbin
-        self.cluster_size=cluster_size
-        self.attribute = attribute
-        self.radius = radius
-        self.tip_width = tip_width
+        self.data_path = data_path
         self.output_path = output_path
+        self.min_pts = min_pts
+        self.cluster_size = cluster_size
+        self.tip_width = tip_width
+        self.base_corr = base_corr
+        self.filtering = filtering
+        self.txt_file = txt_file
+        self.save_graph = save_graph
         
         # add unique point id
         self.pc.loc[:, 'pid'] = np.arange(len(self.pc))
-        self.base_location = self.pc.loc[self.pc.z.idxmin() if base_location == None else base_location].pid
+        self.base_idx = self.pc.loc[self.pc.z.idxmin() if base_idx == None else base_idx].pid
