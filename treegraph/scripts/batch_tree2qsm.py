@@ -1,10 +1,14 @@
+import argparse
 import yaml
-import treegraph
-from treegraph.scripts import tree2qsm
 from glob import glob
+from treegraph.scripts import tree2qsm
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--inputs', '-i', type=str, required=True, help='path to input files')
+a = parser.parse_args()
 
 # run tree2qsm.py on all inputs combination one after the other
-inputs_f = glob('*.yml')
+inputs_f = glob(a.inputs)
 for m in range(len(inputs_f)):
     with open (inputs_f[m]) as fr:
         args = yaml.safe_load(fr)
