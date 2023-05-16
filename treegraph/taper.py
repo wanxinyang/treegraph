@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 from scipy import optimize
 from pandarallel import pandarallel
 from tqdm.autonotebook import tqdm
@@ -51,7 +52,7 @@ def run(centres, path_ids, tip_radius=None, est_rad='sf_radius',
 
 
 def radius_correct(samples, centres, path_ids, tip_radius, est_rad, plot=False):
-    branch = samples[['nbranch', 'node_id', 'distance_from_base', 'm_radius', 'cv']]
+    branch = samples[['nbranch', 'node_id', 'distance_from_base', 'sf_radius', 'm_radius', 'cv']]
     nbranch = np.unique(branch.nbranch)[0]
     if nbranch != 0:
         # ensure child branch radius doesn't exceed twice that of its parent
@@ -100,8 +101,8 @@ def radius_correct(samples, centres, path_ids, tip_radius, est_rad, plot=False):
     if len(bounds) < 4:
         return [samples]
 
-    # fit a upper bound curve
-    L, C = 'upp', 'r'
+    # fit an upper bound curve
+    L, C = 'upp', 'g'
     f_power = lambda x, a, b, c: a * np.power(x,b) + c  # power 
     f_exp = lambda x, a, b, c, d: a * np.exp(-b * x + c) + d  # exponential
     f_para = lambda x, a, b, c: a + b*x + c*np.power(x,2)  # parabola
@@ -126,19 +127,6 @@ def radius_correct(samples, centres, path_ids, tip_radius, est_rad, plot=False):
     # branch.loc[branch.upp <= 0, 'upp'] = branch[branch.upp > 0].upp.min()
     branch.loc[branch[L] <= 0, 'upp'] = .0015
 
-    if plot:
-        fig, axs = plt.subplots(1,2,figsize=(10,4))
-        ax = axs.flatten()
-        # plot fitted upper boundary
-        ax[0].scatter(bounds['distance_from_base'], bounds['upp'], c='r',
-                      label='pts to fit upp bound')
-        X = np.linspace(bounds.distance_from_base.min(), bounds.distance_from_base.max(), 20)
-        ax[0].plot(X, func(X, *popt), c=C, label='upper bound')
-        ax[0].set_xlabel('Distance from base (m)')
-        ax[0].set_ylabel('Radius (mm)')
-        ax[0].set_title('Bound fitting')
-        ax[0].legend(loc='upper right')
-
     # adjust radii that are NAN or fall beyond upper bound
     branch.loc[np.isnan(branch.m_radius), 'm_radius'] = branch.loc[np.isnan(branch.m_radius)].upp
     branch.loc[branch.m_radius > branch.upp, 'm_radius'] = branch.loc[branch.m_radius > branch.upp].upp  
@@ -151,20 +139,30 @@ def radius_correct(samples, centres, path_ids, tip_radius, est_rad, plot=False):
         samples.loc[samples.node_id.isin(branch.node_id.values), 'm_radius'] = branch.m_radius 
 
     if plot:  # plot 
-        ax[1].plot(branch['distance_from_base'], branch['upp'], c='r', label='upper bound')                 
-        adj_nids = branch[branch.m_radius >= branch.upp].node_id.values
-        filt = path[path.node_id.isin(adj_nids)]
-#             adj = branch[branch.node_id.isin(adj_nids)]
-#             ax[1].scatter(adj['distance_from_base'], adj['m_radius'], s=10, c='r', 
-#                           marker='^', label='adjusted radius')
-        ax[1].scatter(filt['distance_from_base'], filt['m_radius'], s=10, c='orange', 
-                      marker='+', label='original radius')
-        ax[1].scatter(branch['distance_from_base'], branch['m_radius'], s=10, c='b', 
-                      marker='o', label='constrained radius')
-        ax[1].set_xlabel('Distance from base (m)')
-        ax[1].set_ylabel('Radius (mm)')
-        ax[1].set_title(f'Constrain: branch {nbranch}')
-        ax[1].legend(loc='upper right')
+        fig, axs = plt.subplots(1,1,figsize=(8,4))
+        ax = [axs]
+        ax[0].plot(bounds['distance_from_base'], bounds['upp'], 'go',
+                   markerfacecolor='none', markersize=2,
+                   label='upper bound candidate pts')
+        X = np.linspace(bounds.distance_from_base.min(), bounds.distance_from_base.max(), 20)
+        ax[0].plot(X, best_func(X, *best_para), 'g--', linewidth=1, label='fitted upper bound')
+
+        # original radius
+        ax[0].plot(branch['distance_from_base'], branch['sf_radius']*1e3, 'r-', 
+                   linewidth=1, alpha=0.5, label='Oringal radius')
+        ax[0].plot(branch['distance_from_base'], branch['sf_radius']*1e3, 'ro', 
+                   markerfacecolor='none', markersize=1)
+        # # corrected radius
+        ax[0].plot(branch['distance_from_base'], branch['m_radius'], 'b-', 
+                   linewidth=1, alpha=0.5, label='Corrected radius')
+        ax[0].plot(branch['distance_from_base'], branch['m_radius'], 'bo', 
+                   markerfacecolor='none', markersize=1)
+
+        ax[0].set_xlabel('Distance from base (m)')
+        ax[0].set_ylabel('Radius (mm)')
+        # ax[1].set_xlim([bounds['distance_from_base'].min(), branch['distance_from_base'].max()])
+        ax[0].set_title(f'Branch {nbranch}')
+        ax[0].legend(loc='upper right')
 
         fig.tight_layout()
         
