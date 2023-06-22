@@ -49,11 +49,11 @@ python /PATH/TO/treegraph/scripts/generate_inputs.py -d '/PATH/TO/clouds/*.ply' 
 
 #### Option 2: Run all the trees one after another:
 
-`python treegraph/script/batch\_tree2qsm.py -i 'inputs/\*.yml'`
+`python treegraph/script/batch_tree2qsm.py -i 'inputs/*.yml'`
 
 #### Option 3: Batch process on HPC
 
-Example job\_script.sh for SLURM system
+Example job_script.sh for SLURM system
 
     #!/bin/bash 
     # scheduling queue
