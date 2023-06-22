@@ -1,7 +1,7 @@
 import pandas as pd
 import json
 import datetime
-from treegraph import ply_io
+from treegraph.third_party import ply_io
 from treegraph.common import *
 from treegraph import estimate_radius
 from treegraph.third_party.cyl2ply import pandas2ply
