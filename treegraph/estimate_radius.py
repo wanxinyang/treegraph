@@ -492,7 +492,7 @@ def p2a_displot(pc, centres, path_ids, interval=0.3, branch_list=None,
                     ax[1].hist(section.p2a, bins=20, density=True)
                     kde = gaussian_kde(section.p2a)
                     x = np.linspace(section.p2a.min(), section.p2a.max(), 100)
-                    ax[1].plot(x, kde(x), color='k', label='KDE')
+                    ax[1].plot(x, kde(x), color='k')
                     ax[1].axvline(p2a_mean, color='r', label=f'p2a_mean\n= {p2a_mean:.2f} m')
                     # ax[1].axvline(np.percentile(section.p2a, 95), color='g', label='95th percentile')
                     ax[1].set_xlabel('Point-to-axis distance (m)', fontsize=12)
@@ -508,3 +508,107 @@ def p2a_displot(pc, centres, path_ids, interval=0.3, branch_list=None,
         taper.reset_index(drop=True, inplace=True)      
 
     return p2a_std, cv
+
+
+def rad_cv_plot(self, branch_list=[*range(100)], bin_width=0.5, 
+                title=None):
+    """
+    Calculate the mean of cv at each distance from base with a given interval.
+    Plot the mean of cv with 95% CI along distance from base.
+    """
+
+    p2a_std, cv = p2a_displot(self.pc, self.centres, self.path_ids, interval=.3, 
+                              branch_list=branch_list, transform_plot=False, displot=False)
+    
+    ## calculate the mean of cv at given interval
+    # transfer cv dict to dataframe
+    data = []
+    for branch_id, values in cv.items():
+        for dfb, cv_ in values.items():
+            data.append((branch_id, dfb, cv_))
+
+    cv_df = pd.DataFrame(data, columns=['branch_id', 'dfb', 'cv'])
+                                            
+    # segment distance from base into bins anc calculate the mean of cv at each bin
+    bins = np.arange(0, cv_df.dfb.max() + bin_width, bin_width)
+    cv_df['dfb_bin'] = pd.cut(cv_df.dfb, bins=bins)
+
+    groupdf = cv_df.groupby(['dfb_bin']).agg({'cv': ['mean', 'std']}).reset_index()
+    groupdf.columns = ['dfb_bin', 'cv_mean', 'cv_std']
+    # convert the bin column to numeric
+    groupdf['dfb_bin'] = groupdf.dfb_bin.apply(lambda x: x.mid)
+    # the upper and lower bound of the 95% CI for the mean cv
+    groupdf['upp'] = groupdf.cv_mean + 1.96 * groupdf.cv_std
+    groupdf['low'] = groupdf.cv_mean - 1.96 * groupdf.cv_std
+
+    # plot
+    fig = plt.figure(figsize=(8,5))
+    # plot the mean cv
+    plt.plot(groupdf.dfb_bin, groupdf.cv_mean, label='mean of CV')
+    # plot 95% CI threshold
+    plt.fill_between(groupdf.dfb_bin, groupdf.low, groupdf.upp, alpha=.3,
+                    label='95% CI')
+    plt.xlabel('Distance from base (m)', fontsize=12)
+    plt.ylabel('CV of radius estimation', fontsize=12)
+
+    # plot main furcation node location
+    stem_fur = self.centres[self.centres.ninternode == 0].distance_from_base.max()
+    plt.axvline(x=stem_fur, color='green', linestyle='--', alpha=0.3, 
+                label='main branching node')
+    plt.legend(loc='upper left')
+    if title:
+        plt.title(title, fontsize=14)
+
+    return fig
+
+
+def rad_std_plot(self, branch_list=[*range(100)], bin_width=0.5, 
+                title=None):
+    """
+    Calculate the mean of cv at each distance from base with a given interval.
+    Plot the mean of cv with 95% CI along distance from base.
+    """
+
+    p2a_std, cv = p2a_displot(self.pc, self.centres, self.path_ids, interval=.3, 
+                              branch_list=branch_list, transform_plot=False, displot=False)
+    
+    ## calculate the mean of cv at given interval
+    # transfer cv dict to dataframe
+    data = []
+    for branch_id, values in p2a_std.items():
+        for dfb, std_ in values.items():
+            data.append((branch_id, dfb, std_))
+
+    std_df = pd.DataFrame(data, columns=['branch_id', 'dfb', 'p2a_std'])
+                                            
+    # segment distance from base into bins anc calculate the mean of p2a_std at each bin
+    bins = np.arange(0, std_df.dfb.max() + bin_width, bin_width)
+    std_df['dfb_bin'] = pd.cut(std_df.dfb, bins=bins)
+
+    groupdf = std_df.groupby(['dfb_bin']).agg({'p2a_std': ['mean', 'std']}).reset_index()
+    groupdf.columns = ['dfb_bin', 'p2a_std_mean', 'p2a_std_std']
+    # convert the bin column to numeric
+    groupdf['dfb_bin'] = groupdf.dfb_bin.apply(lambda x: x.mid)
+    # the upper and lower bound of the 95% CI for the mean p2a_std
+    groupdf['upp'] = groupdf.p2a_std_mean + 1.96 * groupdf.p2a_std_std
+    groupdf['low'] = groupdf.p2a_std_mean - 1.96 * groupdf.p2a_std_std
+
+    # plot
+    fig = plt.figure(figsize=(8,5))
+    # plot the mean cv
+    plt.plot(groupdf.dfb_bin, groupdf.p2a_std_mean, label='average SD')
+    # plot 95% CI threshold
+    plt.fill_between(groupdf.dfb_bin, groupdf.low, groupdf.upp, alpha=.3,
+                    label='95% CI')
+    plt.xlabel('Distance from base (m)', fontsize=12)
+    plt.ylabel('SD of radius estimation', fontsize=12)
+
+    # plot main furcation node location
+    stem_fur = self.centres[self.centres.ninternode == 0].distance_from_base.max()
+    plt.axvline(x=stem_fur, color='green', linestyle='--', alpha=0.3, 
+                label='main branching node')
+    plt.legend(loc='upper left')
+    if title:
+        plt.title(title, fontsize=14)
+
+    return fig
