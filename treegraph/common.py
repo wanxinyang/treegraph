@@ -213,14 +213,14 @@ def least_squares_circle(points):
     return centre, R, residual
 
 
-# function to estimate DBH (1.27-1.33m)
-def dbh_est(self, verbose=False, plot=False):
+# function to estimate DBH at a given height, default between 1.27-1.33m
+def dbh_est(self, h=1.3, verbose=False, plot=False):
     trunk_nids = self.centres[self.centres.nbranch == 0].node_id.values
     zmin = self.pc.z.min()
     zmax = self.pc.z.max()
 
-    zstart = zmin+1.27
-    zstop = zmin+1.33
+    zstart = zmin + h - .03
+    zstop = zmin + h + .03
 
     pc_slice = self.pc[(self.pc.z.between(zstart, zstop)) & 
                         (self.pc.node_id.isin(trunk_nids))]

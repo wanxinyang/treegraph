@@ -29,8 +29,8 @@ for fp in glob(args.data):
     verbose = False
     # if True then do base fitting correction
     base_corr = True
-    # filter out large jump in skeleton node connections, default True 
-    filtering = False
+    # height of DBH estimate, unit in metre, default 1.3m
+    dbh_height = 1.3
     # if True then generate a txt file to store inputs, intermediate results and tree-level attributes
     txt_file = True
     # if True then save initial graph & skeleton graph in the output json file
@@ -47,11 +47,11 @@ for fp in glob(args.data):
                 'tip_width':tip_width,
                 'verbose':verbose,
                 'base_corr':base_corr,
-                'filtering':filtering,
+                'dbh_height':dbh_height,
                 'txt_file':txt_file,
                 'save_graph':save_graph}
         treeid = data_path.split('/')[-1].split('.')[0]
-        ofn = f'{treeid}-inputs-cs{cluster_size[i]}-tip{tip_width}-filter{filtering}.yml'
+        ofn = f'{treeid}-inputs-cs{cluster_size[i]}-tip{tip_width}.yml'
         with open(ofn, 'w') as f:
             f.write(yaml.safe_dump(inputs))
         print(f'generate input file: {ofn}\n')

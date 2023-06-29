@@ -10,13 +10,13 @@ class initialise:
                  data_path='/path/to/pointclouds.ply', 
                  output_path='/path/to/outputs/',
                  base_idx=None,
-                 min_pts=10, 
-                 downsample=.001,
+                 min_pts=5, 
+                 downsample=.01,
                  cluster_size=.04,
                  tip_width=None,
                  verbose=False,
                  base_corr=True,
-                 filtering=True,
+                 dbh_height=1.3,
                  txt_file=True,
                  save_graph=False
                  ):
@@ -57,14 +57,13 @@ class initialise:
         else:
             raise Exception('pc is not a pandas dataframe nor a path to point cloud')
                     
-#         self.slice_interval=slice_interval
         self.data_path = data_path
         self.output_path = output_path
         self.min_pts = min_pts
         self.cluster_size = cluster_size
         self.tip_width = tip_width
         self.base_corr = base_corr
-        self.filtering = filtering
+        self.dbh_height = dbh_height
         self.txt_file = txt_file
         self.save_graph = save_graph
         
