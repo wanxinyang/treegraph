@@ -247,8 +247,10 @@ def dbh_est(self, h=1.3, verbose=False, plot=False):
 
     # DBH est from QSM
     sids = pc_slice.slice_id.unique()
-    nids = self.centres[self.centres['slice_id'].isin(sids)].node_id.unique()
-    cyl_r = self.cyls[self.cyls['p2'].isin(nids)].radius
+    nids = self.centres[(self.centres['slice_id'].isin(sids))
+                        & (self.centres.nbranch == 0)].node_id.unique()
+    cyl_r = self.cyls[(self.cyls['p2'].isin(nids)) 
+                        & (self.cyls['p1'].isin(trunk_nids))].radius
     dbh_qsm = round(np.nanmean(2*cyl_r), 3)
 
     if verbose:
@@ -300,8 +302,10 @@ def dah_est(self, verbose=False, plot=False):
     dah_clouds = round(2*radius, 3)
     # DAH est from QSM
     sids = pc_slice.slice_id.unique()
-    nids = self.centres[self.centres['slice_id'].isin(sids)].node_id.unique()
-    cyl_r = self.cyls[self.cyls['p2'].isin(nids)].radius
+    nids = self.centres[(self.centres['slice_id'].isin(sids))
+                        & (self.centres.nbranch == 0)].node_id.unique()
+    cyl_r = self.cyls[(self.cyls['p2'].isin(nids)) 
+                        & (self.cyls['p1'].isin(trunk_nids))].radius
     dah_qsm = np.nanmean(2*cyl_r)
     if verbose:
         print(f'DAH_from_clouds = {dah_clouds} m')
