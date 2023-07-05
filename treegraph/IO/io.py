@@ -27,63 +27,7 @@ def to_ply(cyls, path, attribute='nbranch', verbose=False):
 
     
 def qsm2json(self, path, name=None, graph=False):
-    # ### tree-level statistics
-    # tree = self.cyls[['length', 'vol', 'surface_area']].sum().to_dict()
-    # tree['H_from_clouds'] = round((self.pc.z.max() - self.pc.z.min()), 2)
-    # tree['H_from_qsm'] = round((self.cyls.sz.max() - self.cyls.sz.min()), 2)
-    # tree['N_tip'] = len(self.cyls[self.cyls.is_tip])
-    # tree['tip_rad_mean'] = self.cyls[self.cyls.is_tip].radius.mean()
-    # tree['tip_rad_std'] = self.cyls[self.cyls.is_tip].radius.std()
 
-    # if len(self.centres.loc[self.centres.is_tip]) > 1:
-    #     tree['dist_between_tips'] = nn(self.centres.loc[self.centres.is_tip][['cx', 'cy', 'cz']].values, N=1).mean()
-    # else: tree['dist_between_tips'] = np.nan
-    
-    # ## DBH from point clouds
-    # # find stem furcation node
-    # ncyl = self.centres[self.centres.ninternode == 0].ncyl.max()
-    # stem_fur_node = self.centres[(self.centres.nbranch == 0) & 
-    #                              (self.centres.ncyl == ncyl)].node_id.values[0]
-    # # stem furcation height above the ground
-    # stem_fur_z = self.centres[self.centres.node_id == stem_fur_node].distance_from_base.values[0]
-    # # calculate radius change of the trunk
-    # _, taper = estimate_radius.p2a(self.pc, self.centres, self.path_ids, 
-    #                                zinterval=.2, branch_list=[0], plot=False)
-
-    # if stem_fur_z > 1.3:
-    #     dbh = np.nanmean(taper[taper.dfb.between(1.2, 1.4)].p2a_mean) * 2
-    # else:  # trunk split less than 1.3m from the ground
-    #     dbh = np.nanmean(taper[taper.dfb.between(stem_fur_z-0.2, stem_fur_z)].p2a_mean) * 2
-    # tree['DBH_from_clouds'] = round(dbh,3)
-
-    # ## DBH from cylinder model
-    # sid = self.pc[np.abs(self.pc.z - self.pc.z.min() -1.3) <=.1].slice_id.unique()
-    # nid = self.centres[self.centres['slice_id'].isin(sid)].node_id.unique()
-    # r = self.cyls.loc[self.cyls['p1'].isin(nid)].radius
-    # dbh = np.nanmean(2*r) 
-    # tree['DBH_from_qsm'] = round(dbh,3)
-
-    # ## trunk info
-    # trunk_nid = self.centres[self.centres.nbranch == 0].node_id.values
-    # for i in range(len(trunk_nid)-1):
-    #     if i == 0:
-    #         trunk = self.cyls[(self.cyls.p1 == trunk_nid[i+1]) & (self.cyls.p2 == trunk_nid[i])]
-    #     else:
-    #         trunk = trunk.append(self.cyls[(self.cyls.p1 == trunk_nid[i+1]) & (self.cyls.p2 == trunk_nid[i])]) 
-    # tree['trunk_vol'] = trunk.vol.sum()
-    # tree['trunk_length'] = trunk.length.sum()
-
-    # ## stem info
-    # stem_nid = self.path_ids[stem_fur_node]
-    # for i in range(len(stem_nid)-1):
-    #     if i == 0:
-    #         stem = self.cyls[(self.cyls.p1 == stem_nid[i+1]) & (self.cyls.p2 == stem_nid[i])]
-    #     else:
-    #         stem = stem.append(self.cyls[(self.cyls.p1 == stem_nid[i+1]) & (self.cyls.p2 == stem_nid[i])])
-    # tree['stem_vol'] = stem.vol.sum()
-    # tree['stem_length'] = stem.length.sum()
-    
-    
     ### internode data
     self.cyls.ncyl = self.cyls.ncyl.astype(int) 
     # self.cyls.loc[:, 'surface_area'] = 2 * np.pi * self.cyls.radius * self.cyls.length #+ 2 * np.pi * self.cyls.radius**2
@@ -168,7 +112,6 @@ def qsm2json(self, path, name=None, graph=False):
             'created':datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             'args':args,
             'run_time':run_time,
-            # 'tree':pd.DataFrame(data=tree, index=[0]).to_json(),
             'tree':self.tree.to_json(),
             'internode':internodes.to_json(),
             'node':nodes.to_json(),
@@ -189,7 +132,7 @@ def qsm2json(self, path, name=None, graph=False):
                 'created':datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 'args':args,
                 'run_time':run_time,
-                'tree':pd.DataFrame(data=tree, index=[0]).to_json(),
+                'tree':self.tree.to_json(),
                 'internode':internodes.to_json(),
                 'node':nodes.to_json(),
                 'cyls':self.cyls.to_json(),
@@ -197,8 +140,7 @@ def qsm2json(self, path, name=None, graph=False):
                 'pc':self.pc.to_json(),
                 'path_ids':self.path_ids,
                 'G_skel':G_skel,
-                'G_init':G_init
-                }
+                'G_init':G_init}
     
     with open(path, 'w') as fh: fh.write(json.dumps(JSON))
 
