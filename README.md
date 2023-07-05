@@ -32,7 +32,7 @@ treegraph_tutorial/
 
 ### Generate input files
 
-You can keep the default parameter settings. If you want to adjust the settings, then open and edit `treegraph/scripts/generate_inputs.py`.
+Required input args are the path for input data and outputs. More optional input args see `treegraph/scripts/generate_inputs.py`.
 
 ```
 conda activate treegraph
