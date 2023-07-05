@@ -155,7 +155,7 @@ def qsm2json(self, path, name=None, graph=False):
     args = {'data_path': self.data_path, 'output_path': self.output_path, 
     'base_idx': self.base_idx, 'min_pts': self.min_pts, 'cluster_size': self.cluster_size,
     'tip_width': self.tip_width, 'verbose': self.verbose, 'base_corr': self.base_corr,
-    'filtering': self.filtering, 'txt_file': self.txt_file, 'save_graph': self.save_graph}
+    'dbh_height': self.dbh_height, 'txt_file': self.txt_file, 'save_graph': self.save_graph}
 
     ### processing time
     run_time = {'run_time': self.time}

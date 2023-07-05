@@ -24,7 +24,7 @@ from datetime import *
 
 def run(data_path='/path/to/pointclouds.ply', output_path='../results/TreeID/',
         base_idx=None, min_pts=5, cluster_size=.04, tip_width=None, verbose=False,  
-        base_corr=True, filtering=False, txt_file=True, save_graph=False):
+        base_corr=True, dbh_height=1.3, txt_file=True, save_graph=False):
     
     self = treegraph.initialise(data_path=data_path,
                                 output_path=output_path,
@@ -35,7 +35,7 @@ def run(data_path='/path/to/pointclouds.ply', output_path='../results/TreeID/',
                                 tip_width=tip_width,
                                 verbose=verbose,  
                                 base_corr=base_corr,
-                                filtering=filtering,
+                                dbh_height=dbh_height,
                                 txt_file=txt_file,
                                 save_graph=save_graph)
 
@@ -52,7 +52,7 @@ def run(data_path='/path/to/pointclouds.ply', output_path='../results/TreeID/',
         inputs = f"data_path = {data_path}\noutput_path = {output_path}\n\
 base_idx = {base_idx}\nmin_pts = {min_pts}\ncluster_size = {cluster_size}\n\
 tip_width = {tip_width}\nverbose = {verbose}\nbase_corr = {base_corr}\n\
-filtering = {filtering}\ntxt_file = {txt_file}\nsave_graph = {save_graph}"
+dbh_height = {dbh_height}\ntxt_file = {txt_file}\nsave_graph = {save_graph}"
     
     with open(o_f+'.txt', 'w') as f:
         f.write('='*20 + 'Inputs' + '='*20 + f'\n{inputs}\n\n')
@@ -144,30 +144,30 @@ filtering = {filtering}\ntxt_file = {txt_file}\nsave_graph = {save_graph}"
             f.write(f"\nSkeleton points: {len(np.unique(self.centres.node_id))}")
 
 
-    ### filter out large jump in each segmented branch ###
-    # filter out large jump at the end of a branch 
-    # run filtering through all branches
-    group_branch = self.centres.groupby('nbranch')
-    sent_back = group_branch.apply(common.filt_large_jump, bin_dict=self.bins).values
-    centres_filt = pd.DataFrame()
-    for val in sent_back:
-        if len(val) == 0:
-            continue
-        centres_filt = centres_filt.append(val)
+    # ### filter out large jump in each segmented branch ###
+    # # filter out large jump at the end of a branch 
+    # # run filtering through all branches
+    # group_branch = self.centres.groupby('nbranch')
+    # sent_back = group_branch.apply(common.filt_large_jump, bin_dict=self.bins).values
+    # centres_filt = pd.DataFrame()
+    # for val in sent_back:
+    #     if len(val) == 0:
+    #         continue
+    #     centres_filt = centres_filt.append(val)
     
-    if filtering:
-        self.centres = centres_filt
-        if txt_file:
-            with open(o_f+'.txt', 'a') as f:
-                f.write('\n\n----Filter large jump at branch end----')
-                f.write(f'\nSkel nodes before filtering: {len(self.centres)}')
-                f.write(f'\nSkel nodes after filtering: {len(centres_filt)}')
+    # if filtering:
+    #     self.centres = centres_filt
+    #     if txt_file:
+    #         with open(o_f+'.txt', 'a') as f:
+    #             f.write('\n\n----Filter large jump at branch end----')
+    #             f.write(f'\nSkel nodes before filtering: {len(self.centres)}')
+    #             f.write(f'\nSkel nodes after filtering: {len(centres_filt)}')
 
 
-    # update tip nodes as some outliers have been filtered out
-    for n in self.centres.nbranch.unique():
-        lastcyl = self.centres[self.centres.nbranch == n].ncyl.max()
-        self.centres.loc[(self.centres.nbranch == n) & (self.centres.ncyl == lastcyl), 'is_tip'] = True
+    # # update tip nodes as some outliers have been filtered out
+    # for n in self.centres.nbranch.unique():
+    #     lastcyl = self.centres[self.centres.nbranch == n].ncyl.max()
+    #     self.centres.loc[(self.centres.nbranch == n) & (self.centres.ncyl == lastcyl), 'is_tip'] = True
     
     
     ### estimate branch radius ###
@@ -264,7 +264,7 @@ filtering = {filtering}\ntxt_file = {txt_file}\nsave_graph = {save_graph}"
     else: tree['dist_between_tips'] = np.nan
         
     ## DBH estimation
-    dbh_clouds, dbh_qsm = common.dbh_est(self, verbose=False, plot=False)
+    dbh_clouds, dbh_qsm = common.dbh_est(self, h=dbh_height, verbose=False, plot=False)
     tree['DBH_from_clouds'] = dbh_clouds
     tree['DBH_from_qsm'] = dbh_qsm
 
@@ -376,6 +376,6 @@ if __name__ == "__main__":
         tip_width=args['tip_width'], 
         verbose=args['verbose'],
         base_corr=args['base_corr'],
-        filtering=args['filtering'],
+        dbh_height=args['dbh_height'],
         txt_file=args['txt_file'],
         save_graph=args['save_graph'])

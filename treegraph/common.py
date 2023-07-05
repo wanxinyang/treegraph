@@ -213,14 +213,14 @@ def least_squares_circle(points):
     return centre, R, residual
 
 
-# function to estimate DBH (1.27-1.33m)
-def dbh_est(self, verbose=False, plot=False):
+# function to estimate DBH at a given height, default between 1.27-1.33m
+def dbh_est(self, h=1.3, verbose=False, plot=False):
     trunk_nids = self.centres[self.centres.nbranch == 0].node_id.values
     zmin = self.pc.z.min()
     zmax = self.pc.z.max()
 
-    zstart = zmin+1.27
-    zstop = zmin+1.33
+    zstart = zmin + h - .03
+    zstop = zmin + h + .03
 
     pc_slice = self.pc[(self.pc.z.between(zstart, zstop)) & 
                         (self.pc.node_id.isin(trunk_nids))]
@@ -247,8 +247,10 @@ def dbh_est(self, verbose=False, plot=False):
 
     # DBH est from QSM
     sids = pc_slice.slice_id.unique()
-    nids = self.centres[self.centres['slice_id'].isin(sids)].node_id.unique()
-    cyl_r = self.cyls[self.cyls['p2'].isin(nids)].radius
+    nids = self.centres[(self.centres['slice_id'].isin(sids))
+                        & (self.centres.nbranch == 0)].node_id.unique()
+    cyl_r = self.cyls[(self.cyls['p2'].isin(nids)) 
+                        & (self.cyls['p1'].isin(trunk_nids))].radius
     dbh_qsm = round(np.nanmean(2*cyl_r), 3)
 
     if verbose:
@@ -300,8 +302,10 @@ def dah_est(self, verbose=False, plot=False):
     dah_clouds = round(2*radius, 3)
     # DAH est from QSM
     sids = pc_slice.slice_id.unique()
-    nids = self.centres[self.centres['slice_id'].isin(sids)].node_id.unique()
-    cyl_r = self.cyls[self.cyls['p2'].isin(nids)].radius
+    nids = self.centres[(self.centres['slice_id'].isin(sids))
+                        & (self.centres.nbranch == 0)].node_id.unique()
+    cyl_r = self.cyls[(self.cyls['p2'].isin(nids)) 
+                        & (self.cyls['p1'].isin(trunk_nids))].radius
     dah_qsm = np.nanmean(2*cyl_r)
     if verbose:
         print(f'DAH_from_clouds = {dah_clouds} m')

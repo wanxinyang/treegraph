@@ -766,6 +766,48 @@ def plot_branches(pc, centres,  branch_list=[*range(0,10)],
     return fig
 
 
+def plot_extracted_branches(pc, centres,  branch_list=[*range(0,10)], 
+                  title='Extracted 10 longest branches', 
+                  point_size=.01, markerscale=50, figsize=(8,6)):
+    '''
+    Plot point clouds of specified branches given in branch_list.
+
+    Inputs:
+        - pc: pd.DataFrame, point clouds attributes
+        - centres: pd.DataFrame, skeleton node attributes
+        - branch_list: list, branch_id 
+        - title: str, figure title
+    
+    Output:
+        Return two subplots, front view (X-Z) and side view (Y-Z).
+        Each colour represents an individual branch.
+    '''
+    fig, axs = plt.subplots(1,2,figsize=figsize)
+    axs = axs.flatten()
+    bs = np.sort(centres.nbranch.isin(branch_list))
+    
+    # orginal point clouds
+    axs[0].scatter(pc.x, pc.z, s=0.0005, c='grey')
+    axs[0].set_xlabel('x coordinates (m)', fontsize=12)
+    axs[0].set_ylabel('z coordinates (m)', fontsize=12)
+    axs[0].set_title(f'Original tree point cloud', fontsize=14)
+    axs[0].axis('equal')
+
+    for nbranch in branch_list:
+        nodes1 = centres[centres.nbranch == nbranch].node_id
+        branch_pc = pc.loc[pc.node_id.isin(nodes1)]
+
+        axs[1].scatter(branch_pc.x, branch_pc.z, s=point_size, label=f'branch {nbranch}')
+        axs[1].set_xlabel('x coordinate (m)', fontsize=12)
+        axs[1].set_ylabel('z coordinate (m)', fontsize=12)
+        axs[1].set_title(f'{title}', fontsize=14)
+        axs[1].legend(loc='lower right', markerscale=markerscale)
+    axs[1].axis('equal')    
+    
+    fig.tight_layout()
+    return fig
+
+
 def plot_single_branch(centres, pc, nbranch, point_size=.01,
                         x_size=4, y_size=8, 
                         xmin=None, xmax=None,
@@ -820,9 +862,8 @@ def plot_single_branch(centres, pc, nbranch, point_size=.01,
 
 
 def plot_single_branch_batch(centres, pc, branch_list=[*range(10)], 
-                            point_size=.01, x_size=5, y_size=10, 
-                            xmin=None, xmax=None,
-                            ymin=None, ymax=None):
+                            point_size=.01, x_size=3, y_size=4, 
+                            xlim=None, ylim=None):
     '''
     Plot point cloud and skeleton nodes of specific branches given in branch_list, 
     each subgraph represents a single branch.
@@ -832,36 +873,41 @@ def plot_single_branch_batch(centres, pc, branch_list=[*range(10)],
         - pc: dataframe
         - nbranch: index of the branch that like to plot
         - x_xize, y_size: the size of the figure
-        - xmin, xmax: the range of x coordinates in the plot
-        - ymin, ymax: the range of y coordinates in the plot
+        - xlim: a list includes the range of x coordinates in the plot
+        - ylim: a list includes the range of y coordinates in the plot
     
     Outputs:
         Figure contains subgraphs of invidual branches. Each colour represents 
         a non-bifurcation part separated by a furcation node (red hollow circle).
         Triangle points donote the skeleton nodes.
     '''
-    row = int(math.ceil(len(branch_list) / 3.) )
-    col = 3
+    row = int(math.ceil(len(branch_list) / 5.) )
+    col = 5
     fig, axs = plt.subplots(row, col, figsize=(x_size*col, y_size*row))
     if (branch_list) == 1:
         ax = [axs]
     else:
         ax = axs.flatten()
     
-    colour = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'] 
+    colour = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', 
+              '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'] 
     
     for i, nbranch in enumerate(branch_list):
         branch = centres[centres.nbranch == nbranch]
         branch_pc = pc[pc.node_id.isin(branch.node_id.values)]
         
         ax[i].scatter(branch_pc.x, branch_pc.z, s=point_size, c=colour[i%10])
-        ax[i].axis('equal')
+        if xlim is not None:
+            ax[i].set_xlim(xlim[0], xlim[1])
+        if ylim is not None:
+            ax[i].set_ylim(ylim[0], ylim[1])
+        else:
+            ax[i].axis('equal')
         ax[i].set_title(f'branch {nbranch}', fontsize=14)
         ax[i].set_xlabel('x coordinate (m)', fontsize=12)
-        if i % 3 == 0:
+        if i % 5 == 0:
             ax[i].set_ylabel('z coordinate (m)', fontsize=12)
 
-    fig.tight_layout(w_pad=1.5)
+    fig.tight_layout(w_pad=1)
     
     return fig
-

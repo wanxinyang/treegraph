@@ -376,7 +376,7 @@ def p2a_2(pc, centres, path_ids, zinterval=.3, auto=True,
 
 
 def p2a_displot(pc, centres, path_ids, interval=0.3, branch_list=None, 
-                transform_plot=False, displot=False):
+                transform_plot=False, displot=False, xlim=None, ylim=None):
     '''
     Plot distribution of point-to-axis distance (p2a) per section per branch.
     Calculate coefficient of variation (CV) of p2a per section per branch.
@@ -468,7 +468,7 @@ def p2a_displot(pc, centres, path_ids, interval=0.3, branch_list=None,
                 p2a_std[nbranch][z] = section.p2a.std()
                 
                 if displot:
-                    fig, axs = plt.subplots(1, 2, figsize=(10, 5))
+                    fig, axs = plt.subplots(1, 2, figsize=(8, 4))
                     ax = axs.flatten()
 
                     # scatter plot of section
@@ -477,392 +477,138 @@ def p2a_displot(pc, centres, path_ids, interval=0.3, branch_list=None,
                     ax[0].add_artist(plt.Circle((0, 0), p2a_mean, color='r', alpha=0.2))
                     ax[0].set_xlabel('x (m)', fontsize=12)
                     ax[0].set_ylabel('y (m)', fontsize=12)
-                    ax[0].axis('equal')
+                    if xlim is None:
+                        ax[0].axis('equal')
+                    else:
+                        ax[0].set_xlim(xlim[0], xlim[1])
+                        ax[0].set_ylim(ylim[0], ylim[1])
                     ax[0].tick_params(axis='both', which='major', labelsize=10)
                     z_low = z - zmin
                     z_upp = z + dz - zmin
-                    ax[0].set_title(f'Slice from {z_low:.2f} to {(z_upp):.2f} m,\np2a_mean={p2a_mean:.2f}, std={section.p2a.std():.2f}, cv={p2a_cv:.2f}',
-                                    fontsize=12)
-                    # ax[0].set_title(f'section {i}, z=[{z_low:.2f}, {(z_upp):.2f}],\np2a_mean={p2a_mean:.2f}, std={section.p2a.std():.2f}, cv={p2a_cv:.2f}')
+                    ax[0].set_title(f'Slice from {z_low:.2f} to {(z_upp):.2f} m', fontsize=14)
 
                     # distribution of p2a distance
                     from scipy.stats import gaussian_kde
                     ax[1].hist(section.p2a, bins=20, density=True)
                     kde = gaussian_kde(section.p2a)
                     x = np.linspace(section.p2a.min(), section.p2a.max(), 100)
-                    ax[1].plot(x, kde(x), color='k', label='KDE')
-                    ax[1].axvline(p2a_mean, color='r', label='p2a_mean')
+                    ax[1].plot(x, kde(x), color='k')
+                    ax[1].axvline(p2a_mean, color='r', label=f'p2a_mean\n= {p2a_mean:.2f} m')
                     # ax[1].axvline(np.percentile(section.p2a, 95), color='g', label='95th percentile')
                     ax[1].set_xlabel('Point-to-axis distance (m)', fontsize=12)
                     ax[1].set_ylabel('Density', fontsize=12)
+                    if xlim is not None:
+                        ax[1].set_xlim(0, xlim[1])
                     ax[1].tick_params(axis='both', which='major', labelsize=10)
-                    ax[1].legend(loc='upper right')
+                    ax[1].legend(loc='best', fontsize=12)
+                    ax[1].set_title(f'std={section.p2a.std():.2f}, cv={p2a_cv:.2f}', fontsize=14)
 
-                    plt.show()
+                    fig.tight_layout()
         
         taper.reset_index(drop=True, inplace=True)      
 
     return p2a_std, cv
 
 
-## older version
+def rad_cv_plot(self, branch_list=[*range(100)], bin_width=0.5, 
+                title=None):
+    """
+    Calculate the mean of cv at each distance from base with a given interval.
+    Plot the mean of cv with 95% CI along distance from base.
+    """
 
-# def run(pc, centres, path_ids, zinterval=0.3, branch_list=None, plot=False):
-#     '''
-#     Radius estimation of individual branches.
-#     '''
-#     if branch_list is None:
-#         branch_list = np.unique(centres.nbranch)
+    p2a_std, cv = p2a_displot(self.pc, self.centres, self.path_ids, interval=.3, 
+                              branch_list=branch_list, transform_plot=False, displot=False)
     
-#     # loop over each branch
-#     for nbranch in branch_list:
-#         # print(f'nbranch = {nbranch}')
-        
-#         ## transform branch from curve to straight
-#         pc_transf = branch_transform(pc, centres, path_ids, nbranch=nbranch, 
-#                                      interp='nearest', plot=False, save=False)
-#         if len(pc_transf) == 0: 
-#             centres = centres.loc[~(centres.nbranch == nbranch)]
-#             continue
-#         # calculate point-to-axis distance of each point
-#         pc_transf.loc[:, 'p2a'] = np.sqrt(pc_transf.x**2 + pc_transf.y**2)
+    ## calculate the mean of cv at given interval
+    # transfer cv dict to dataframe
+    data = []
+    for branch_id, values in cv.items():
+        for dfb, cv_ in values.items():
+            data.append((branch_id, dfb, cv_))
 
-#         ## calculate average point-to-axis distance at every dz interval
-#         # and use this as estismated radius
-#         dz = zinterval  # reslice points in interval with dz height (unit in meter)
-#         taper = pd.DataFrame(columns=['dfb', 'p2a_mean'])
+    cv_df = pd.DataFrame(data, columns=['branch_id', 'dfb', 'cv'])
+                                            
+    # segment distance from base into bins anc calculate the mean of cv at each bin
+    bins = np.arange(0, cv_df.dfb.max() + bin_width, bin_width)
+    cv_df['dfb_bin'] = pd.cut(cv_df.dfb, bins=bins)
 
-#         zmin = pc_transf.z.min()
-#         zmax = pc_transf.z.max()
-#         # the branch cannot be segmented into multiple sections with given interval
-#         if (zmax - zmin) < dz:
-#             section = pc_transf
-#             taper.loc[0, 'dfb'] = zmin
-#             # taper.loc[0, 'p2a_mean'] = section.p2a.mean()
-#             # filter out distance outside 95th percentile
-#             pct95 = np.percentile(section.p2a, 95) 
-#             section = section[section.p2a < pct95]
-#             p2a_cv = section.p2a.std() / section.p2a.mean()
-#             if len(section) < 1:
-#                 taper.loc[i, 'p2a_mean'] = np.nan
-#             elif p2a_cv < 1:
-#                 taper.loc[i, 'p2a_mean'] = section.p2a.mean() - p2a_cv * section.p2a.std()
-#             else:
-#                 taper.loc[i, 'p2a_mean'] = np.percentile(section.p2a, 25)
-#         # the branch can be segmented into multiple sections with given interval
-#         else:
-#             for i, z in enumerate(np.arange(zmin, zmax, dz)):
-#                 section = pc_transf[(pc_transf.z >= z) & (pc_transf.z < (z+dz))]
-#                 if len(section) <= 1:
-#                     continue
-#                 # filter out distance outside 95th percentile
-#                 pct95 = np.nanpercentile(section.p2a, 95)  
-#                 section = section[section.p2a < pct95]
-#                 if len(section) <= 1:
-#                     continue
-#                 p2a_cv = section.p2a.std() / section.p2a.mean()
-#                 taper.loc[i, 'dfb'] = z
-#                 if p2a_cv < 1 :
-#                     taper.loc[i, 'p2a_mean'] = section.p2a.mean() - p2a_cv * section.p2a.std()
-#                 else:
-#                     taper.loc[i, 'p2a_mean'] = np.percentile(section.p2a, 25)
-#         taper.reset_index(drop=True, inplace=True)
-                
-#         ## smooth taper by moving average
-#         taper.loc[:, 'p2a_mean_conv'] = taper.p2a_mean
+    groupdf = cv_df.groupby(['dfb_bin']).agg({'cv': ['mean', 'std']}).reset_index()
+    groupdf.columns = ['dfb_bin', 'cv_mean', 'cv_std']
+    # convert the bin column to numeric
+    groupdf['dfb_bin'] = groupdf.dfb_bin.apply(lambda x: x.mid)
+    # the upper and lower bound of the 95% CI for the mean cv
+    groupdf['upp'] = groupdf.cv_mean + 1.96 * groupdf.cv_std
+    groupdf['low'] = groupdf.cv_mean - 1.96 * groupdf.cv_std
 
-#         if (len(taper) > 3):
-#             taper.loc[taper.index.max()+1, 'dfb'] = zmax
-#             taper.loc[taper.index.max(), 'p2a_mean'] = taper.p2a_mean.values[-2]
+    # plot
+    fig = plt.figure(figsize=(8,5))
+    # plot the mean cv
+    plt.plot(groupdf.dfb_bin, groupdf.cv_mean, label='mean of CV')
+    # plot 95% CI threshold
+    plt.fill_between(groupdf.dfb_bin, groupdf.low, groupdf.upp, alpha=.3,
+                    label='95% CI')
+    plt.xlabel('Distance from base (m)', fontsize=12)
+    plt.ylabel('CV of radius estimation', fontsize=12)
 
-#             # do not smooth stem radius as stem points usually in good quality
-#             if nbranch == 0:
-#                 # find stem furcation node
-#                 ncyl = centres[centres.ninternode == 0].ncyl.max()
-#                 stem_fur_node = centres[(centres.nbranch == 0) & (centres.ncyl == ncyl)].node_id.values[0]
-#                 stem_fur_dfb = pc[pc.node_id == stem_fur_node].distance_from_base.max()
+    # plot main furcation node location
+    stem_fur = self.centres[self.centres.ninternode == 0].distance_from_base.max()
+    plt.axvline(x=stem_fur, color='green', linestyle='--', alpha=0.3, 
+                label='main branching node')
+    plt.legend(loc='upper left')
+    if title:
+        plt.title(title, fontsize=14)
 
-#                 window_size = 3
-#                 windows = taper[taper.dfb > stem_fur_dfb].p2a_mean.rolling(window_size, min_periods=1)
-#                 taper.loc[(taper.dfb > stem_fur_dfb), 'p2a_mean_conv'] = windows.mean()
-#             else:
-#                 window_size = 3
-#                 windows = taper.p2a_mean.rolling(window_size, min_periods=1)
-#                 taper['p2a_mean_conv'] = windows.mean()
-#                 taper.loc[0:1, 'p2a_mean_conv'] = taper.p2a_mean.values[0:2]
+    return fig
 
-#         ## return estimated radius back to centres attributes
-#         cen_branch = centres[centres.nbranch == nbranch]
-#         arr1 = np.array(cen_branch.distance_from_base, dtype='float64')
-#         if nbranch == 0:
-#             arr1[0] = arr1[1] / 2.
-#         arr2 = np.array(taper.dfb, dtype='float64')
-#         cen_branch['dfb_id'] = np.digitize(arr1, arr2, right=True)
-#         if cen_branch.dfb_id.max() > taper.index.max():
-#             cen_branch.loc[cen_branch.dfb_id == cen_branch.dfb_id.max(), 'dfb_id'] = taper.index.max()
-     
-#         centres.loc[centres.nbranch == nbranch, 'sf_radius'] = cen_branch.dfb_id.apply(lambda x: taper[taper.index == x].p2a_mean.values[0])                   
-#         centres.loc[centres.nbranch == nbranch, 'sf_radius_conv'] = cen_branch.dfb_id.apply(lambda x: taper[taper.index == x].p2a_mean_conv.values[0])
 
-        
-#         ## plot sf_radius and sf_radius_conv of changing along distance from base in current branch
-#         if plot:
-#             branch = centres[centres.nbranch==nbranch]
-#             plt.figure(figsize=(14,4))
-#             plt.scatter(branch.distance_from_base, branch.sf_radius, s=5, c='r')
-#             plt.plot(branch.distance_from_base, branch.sf_radius, label='estimated radius')
+def rad_std_plot(self, branch_list=[*range(100)], bin_width=0.5, 
+                title=None):
+    """
+    Calculate the mean of cv at each distance from base with a given interval.
+    Plot the mean of cv with 95% CI along distance from base.
+    """
 
-#             plt.scatter(branch.distance_from_base, branch.sf_radius_conv, s=5, c='r')
-#             plt.plot(branch.distance_from_base, branch.sf_radius_conv, label='smoothed radius')
-
-#             plt.xlabel('Distance from base (m)')
-#             plt.ylabel('Radius (m)')
-#             plt.title(f'Branch {nbranch}')
-#             plt.legend(bbox_to_anchor=(1.2,1))
+    p2a_std, cv = p2a_displot(self.pc, self.centres, self.path_ids, interval=.3, 
+                              branch_list=branch_list, transform_plot=False, displot=False)
     
-#     return centres
+    ## calculate the mean of cv at given interval
+    # transfer cv dict to dataframe
+    data = []
+    for branch_id, values in p2a_std.items():
+        for dfb, std_ in values.items():
+            data.append((branch_id, dfb, std_))
 
+    std_df = pd.DataFrame(data, columns=['branch_id', 'dfb', 'p2a_std'])
+                                            
+    # segment distance from base into bins anc calculate the mean of p2a_std at each bin
+    bins = np.arange(0, std_df.dfb.max() + bin_width, bin_width)
+    std_df['dfb_bin'] = pd.cut(std_df.dfb, bins=bins)
 
-# def branch_transform(pc, centres, path_ids, nbranch=0, interp='slinear', 
-#                      plot=False, save=False, treeid=None):
+    groupdf = std_df.groupby(['dfb_bin']).agg({'p2a_std': ['mean', 'std']}).reset_index()
+    groupdf.columns = ['dfb_bin', 'p2a_std_mean', 'p2a_std_std']
+    # convert the bin column to numeric
+    groupdf['dfb_bin'] = groupdf.dfb_bin.apply(lambda x: x.mid)
+    # the upper and lower bound of the 95% CI for the mean p2a_std
+    groupdf['upp'] = groupdf.p2a_std_mean + 1.96 * groupdf.p2a_std_std
+    groupdf['low'] = groupdf.p2a_std_mean - 1.96 * groupdf.p2a_std_std
 
-#     # find stem furcation node
-#     ncyl = centres[centres.ninternode == 0].ncyl.max()
-#     stem_fur_node = centres[(centres.nbranch == 0) & (centres.ncyl == ncyl)].node_id.values[0]
-    
-#     samples = centres[centres.nbranch == nbranch].copy()
-#     # use path from trunk 1st furcation to tip if current branch's segments < 5
-#     if (nbranch != 0) & (len(samples) <= 5):
-#         # segments from stem furcation node to branch tip
-#         tip = centres[(centres.nbranch == nbranch)].sort_values('ncyl').node_id.values[-1]
-#         path = path_ids[tip]
-#         fur_id = path.index(stem_fur_node)
-#         path = path[fur_id+1:]
-#         if len(path) < 4:
-#             return []
-#         samples = centres[centres.node_id.isin(path)].copy()
-    
-#     pc = pc[pc.node_id.isin(samples.node_id.values)].copy()
+    # plot
+    fig = plt.figure(figsize=(8,5))
+    # plot the mean cv
+    plt.plot(groupdf.dfb_bin, groupdf.p2a_std_mean, label='average SD')
+    # plot 95% CI threshold
+    plt.fill_between(groupdf.dfb_bin, groupdf.low, groupdf.upp, alpha=.3,
+                    label='95% CI')
+    plt.xlabel('Distance from base (m)', fontsize=12)
+    plt.ylabel('SD of radius estimation', fontsize=12)
 
-#     if plot:
-#         # plot a specific branch with furcation node highlighted
-#         nodes = samples.node_id.values
-#         plots.plot_slice(pc, samples, slice_id=nodes, attr='node_id', 
-#                          figtitle=f'Branch {nbranch}, pts coloured in cluster')
-    
-#     ### Sample point
-#     x = samples.cx
-#     y = samples.cy
-#     z = samples.cz
-#     t = samples.distance_from_base 
+    # plot main furcation node location
+    stem_fur = self.centres[self.centres.ninternode == 0].distance_from_base.max()
+    plt.axvline(x=stem_fur, color='green', linestyle='--', alpha=0.3, 
+                label='main branching node')
+    plt.legend(loc='upper left')
+    if title:
+        plt.title(title, fontsize=14)
 
-#     ### Apply interpolation for each x, y and z
-#     xx = interp1d(t, x, kind=interp, bounds_error=False)
-#     yy = interp1d(t, y, kind=interp, bounds_error=False)
-#     zz = interp1d(t, z, kind=interp, bounds_error=False)
-
-#     if plot:
-#         ### Visualize the interpolation result
-#         ## 2D view
-#         fig1, axs = plt.subplots(1,2,figsize=(10, 8))
-#         fig1.suptitle(f'Branch {nbranch}, interpolated by {interp}', fontsize=14)
-#         ax = axs.flatten()
-#         # front view
-#         ax[0].scatter(x, z, s=10, c='r') # centre nodes
-#         tt = np.linspace(t.min(), t.max())
-#         ax[0].plot(xx(tt), zz(tt), c='b', linewidth=2.5) # spline
-#         ax[0].scatter(pc.x, pc.z, s=0.01, c='grey', alpha=0.2) # point cloud
-#         # side view
-#         ax[1].scatter(y, z, s=10, c='r') # centre nodes
-#         tt = np.linspace(t.min(), t.max())
-#         ax[1].plot(yy(tt), zz(tt), c='b', linewidth=2.5) # spline
-#         ax[1].scatter(pc.y, pc.z, s=0.5, c='grey', alpha=0.5) # point cloud
-        
-#         # ## 3D view
-#         # fig3 = plt.figure(figsize=(10, 10))
-#         # ax = fig3.add_subplot(projection='3d')
-#         # ax.scatter(xs=x, ys=y, zs=z, s=10) # centre nodes
-#         # tt = np.linspace(t.min(), t.max())
-#         # ax.plot(xx(tt), yy(tt), zz(tt), c='r', linewidth=2.5) # spline
-#         # ax.scatter(xs=pc.x, ys=pc.y, zs=pc.z, s=0.01, c='grey', alpha=0.2) # point cloud
-#         # fig3.suptitle(f'Branch {nbranch}, interpolated by {interp}', fontsize=14)
-    
-#     ### remove curve from pc
-#     pc.loc[:, 'tx'] = pc.x - xx(pc.distance_from_base)
-#     pc.loc[:, 'ty'] = pc.y - yy(pc.distance_from_base)
-#     pc.loc[:, 'tz'] = pc.z - zz(pc.distance_from_base)
-
-#     if plot:
-#         # plot as function of distance from base
-#         fig2, axs = plt.subplots(2,3,figsize=(12,10))
-#         axs[0,0].scatter(pc.x, pc.distance_from_base, s=0.1)
-#         axs[0,0].set_xlabel('pc.x', fontsize=12)
-#         axs[0,0].set_ylabel('distance_from_base', fontsize=12)
-
-#         axs[1,0].scatter(pc.tx, pc.distance_from_base, s=0.1)
-#         axs[1,0].set_xlabel('pc.tx', fontsize=12)
-#         axs[1,0].set_ylabel('distance_from_base', fontsize=12)
-
-#         axs[0,1].scatter(pc.y, pc.distance_from_base, s=0.1)
-#         axs[0,1].set_xlabel('pc.y', fontsize=12)
-
-#         axs[1,1].scatter(pc.ty, pc.distance_from_base, s=0.1)
-#         axs[1,1].set_xlabel('pc.ty', fontsize=12)
-
-#         axs[0,2].scatter(pc.z, pc.distance_from_base, s=0.1)
-#         axs[0,2].set_xlabel('pc.z', fontsize=12)
-
-#         axs[1,2].scatter(pc.tz, pc.distance_from_base, s=0.1)
-#         axs[1,2].set_xlabel('pc.tz', fontsize=12)
-        
-#         # set X and Y ticks
-#         xmin = pc.x.min() / 1.05
-#         xmax = pc.x.max() * 1.05
-#         ymin = pc.y.min() / 1.05
-#         ymax = pc.y.max() * 1.05
-#         zmin = pc.distance_from_base.min() / 1.05
-#         zmax = pc.distance_from_base.max() * 1.05
-#         # keep X-axis and Y-axis in same scale
-#         if (zmax - zmin) > (xmax - xmin):
-#             xmin = xmin - (zmax - zmin) / 2.
-#             xmax = xmax + (zmax - zmin) / 2.
-#         if (zmax - zmin) > (ymax - ymin):
-#             ymin = ymin - (zmax - zmin) / 2.
-#             ymax = ymax + (zmax - zmin) / 2.
-#         axs[0,0].set_xlim(xmin, xmax)
-#         axs[0,1].set_xlim(ymin, ymax)
-#         axs[0,0].set_ylim(zmin, zmax)
-#         axs[0,1].set_ylim(zmin, zmax)
-        
-#         fig2.tight_layout(h_pad=2)
-    
-    
-#     if save:
-#         # distance_from_base then becomes the new Z coordinate when fitting cylinders
-#         ofn = f'../results/test_transform/{treeid}.branch{nbranch}.transformed.ply'
-#         IO.write_ply(ofn, pc[['tx', 'ty', 'distance_from_base']].rename(columns={'tx':'x', 'ty':'y', 'distance_from_base':'z'}))
-
-#     pc_transf = pc[~np.isnan(pc.tx)][['node_id', 'tx', 'ty', 'distance_from_base']].rename(columns={'tx':'x', 'ty':'y', 'distance_from_base':'z'})
-    
-#     return pc_transf
-
-
-# def p2a(pc, centres, path_ids, zinterval=.3, branch_list=None, plot=False):
-
-#     if branch_list is None:
-#         branch_list = np.unique(centres.nbranch)
-    
-#     # loop over each branch
-#     # for nbranch in np.unique(centres.nbranch.isin(branch_list)):
-#     for nbranch in branch_list:
-#         ## transform branch from curve to straight
-#         pc_transf = branch_transform(pc, centres, path_ids, nbranch=nbranch, 
-#                                      interp='nearest', plot=False, save=False)
-#         if len(pc_transf) == 0: continue
-#         # calculate point-to-axis distance of each point
-#         pc_transf.loc[:, 'p2a'] = np.sqrt(pc_transf.x**2 + pc_transf.y**2)
-
-#         ## calculate average point-to-axis distance at every dz interval
-#         # and use this as estismated radius
-#         dz = zinterval  # reslice points in interval with dz height (unit in meter)
-#         taper = pd.DataFrame(columns=['dfb', 'p2a_mean'])
-
-#         zmin = pc_transf.z.min()
-#         zmax = pc_transf.z.max()
-#         if (zmax - zmin) < dz:
-#             section = pc_transf
-#             taper.loc[0, 'dfb'] = zmin
-#             # taper.loc[0, 'p2a_mean'] = section.p2a.mean()
-#             p2a_cv = section.p2a.std() / section.p2a.mean()
-#             if p2a_cv < 1 :
-#                 taper.loc[i, 'p2a_mean'] = section.p2a.mean() - p2a_cv * section.p2a.std()
-#             else:
-#                 taper.loc[i, 'p2a_mean'] = np.percentile(section.p2a, 25)
-#         else:
-#             for i, z in enumerate(np.arange(zmin, zmax, dz)):
-#                 section = pc_transf[(pc_transf.z >= z) & (pc_transf.z < (z+dz))]
-#                 if len(section) <= 1:
-#                     continue
-#                 pct95 = np.nanpercentile(section.p2a, 95)  # filter out distance outside 95th percentile
-#                 section = section[section.p2a < pct95]
-#                 p2a_cv = section.p2a.std() / section.p2a.mean()
-#                 taper.loc[i, 'dfb'] = z
-#                 if p2a_cv < 1 :
-#                     taper.loc[i, 'p2a_mean'] = section.p2a.mean() - p2a_cv * section.p2a.std()
-#                 else:
-#                     taper.loc[i, 'p2a_mean'] = np.percentile(section.p2a, 25)
-#         taper.reset_index(drop=True, inplace=True)
-            
-#     if plot:
-#         fig, axs = plt.subplots(1,1,figsize=(10,4))
-#         ax = [axs]
-#         ax[0].scatter(taper.dfb, taper.p2a_mean, s=5, c='r')
-#         ax[0].plot(taper.dfb, taper.p2a_mean, label=f'branch {nbranch}')
-#         ax[0].set_xlabel('distance from base')
-#         ax[0].set_ylabel('mean point to axis dist')
-#         ax[0].set_title(f'Radius estimates from point clouds with interval of {zinterval} m')
-#         # ax[0].legend(loc='upper right')
-#         ax[0].legend(bbox_to_anchor=(1.13,1))
-
-#     return pc_transf, taper
-
-
-# def p2a_displot(pc, centres, path_ids, interval=0.2, 
-#                 branch_list=None, transform_plot=False, displot=True):
-#     '''
-#     Plot distribution of point to axis distance of each section with given interval, 
-#     and return the coefficient of variation of each section.
-
-#     Inputs:
-#     - pc: pd.DataFrame, point clouds attributes
-#     - centres: pd.DataFrame, skeleton nodes attributes
-#     - path_ids: dict, list of node_id of each branch path
-#     - interval: float, vertical length to segment points into sections
-#     - branch_list: list, a list of branch_id for plotting
-#     - transform_plot: bool, if True plot branch curve-to-line transformation graphs
-#     - displot: bool, if True plot distribution of point to axis distance of each section
-
-#     Outputs:
-#     - cv: dict, coefficient of variation of each section
-#     - figures if plot is True
-#     '''
-    
-#     if branch_list is not None:
-#         samples = centres[centres.nbranch.isin(branch_list)]
-#     else:
-#         samples = centres
-#     cv = {}
-    
-#     for nbranch in samples.nbranch.unique():
-#         # transform points of this branch
-#         pc_transf = estimate_radius.branch_transform(pc, centres, path_ids, nbranch=nbranch, plot=transform_plot, save=False)
-#         # calculate point to axis distance
-#         pc_transf.loc[:, 'p2a'] = np.sqrt(pc_transf.x**2 + pc_transf.y**2)
-
-#         # mean p2a dist at each interval as a func of distance from base
-#         taper = pd.DataFrame(columns=['dfb', 'p2a_mean'])
-        
-#         cv[nbranch] = {}
-#         for i, z in enumerate(np.arange(pc_transf.z.min(), pc_transf.z.max(), interval)):
-#             section = pc_transf[(pc_transf.z >= z) & (pc_transf.z < (z + interval))]
-#             if len(section) <= 1:
-#                 continue
-#             pct95 = np.percentile(section.p2a, 95)  # filter out distance outside 95th percentile
-#             section = section[section.p2a < pct95]
-#             # taper.loc[i, 'dfb'] = z
-#             # taper.loc[i, 'p2a_mean'] = section[section.p2a < pct95].p2a.mean()
-            
-#             # coefficient of variance
-#             cv[nbranch][i] = section.p2a.std() / section.p2a.mean()
-            
-#             if displot:
-#                 section.plot.scatter(x='x', y='y', s=5, c='grey', 
-#                                      # xlim=[pc_transf.x.min()/1.05, pc_transf.x.max()*1.05],
-#                                      # ylim=[pc_transf.z.min()/1.05, pc_transf.z.max()*1.05],
-#                                      title=f'section {i}', fontsize=12)
-#                 sns.displot(section, x='p2a', kde=True)
-#                 plt.axvline(section.p2a.mean(), color='r', label='p2a.mean')
-#                 plt.axvline(np.percentile(section.p2a, 25), color='g', label='25th percentile')
-#                 plt.legend()
-    
-#     return cv
+    return fig
