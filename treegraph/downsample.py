@@ -79,13 +79,7 @@ def run(pc, vlength,
                 .rename(columns={'x':'cnt'}) \
                 .join(pc.groupby('VX')[['x', 'y', 'z']].median()) \
                 .reset_index()
-#         dist_between_voxels = calc_distance((VX.loc[VX.cnt > min_pts][['x', 'y', 'z']] * 1000).to_numpy(dtype=np.int8), 
-#                                             (VX[['x', 'y', 'z']] * 1000).to_numpy(dtype=np.int8))     # min_pts is 5
-        
-#         return pc, base_location, VX, dist_between_voxels
-#         VX.loc[:, 'VXn'] = VX.loc[VX.index[dist_between_voxels.argmin(axis=0)]].VX.values        
-#         VX_map = {row.VX:row.VXn for row in VX[['VX', 'VXn']].itertuples()}
-#         pc.VX = pc.VX.map(VX_map)
+
         nbrs = NearestNeighbors(n_neighbors=10, leaf_size=15, n_jobs=-1).fit(VX[['x', 'y', 'z']])
         distances, indices = nbrs.kneighbors(VX[['x', 'y', 'z']])
         idx = np.argmax(np.isin(indices, VX.loc[VX.cnt > min_pts].index.to_numpy()), axis=1)

@@ -1,13 +1,13 @@
 import time
 import pandas as pd
 import numpy as np
+import treegraph.distance_from_base 
 from tqdm.autonotebook import trange
 from pandas.api.types import CategoricalDtype
-import treegraph.distance_from_base 
+
 
 def run(centres, path_ids, verbose=False, branch_hierarchy=False):
-    
-#     T = time.time()
+
     with trange(6 if branch_hierarchy else 5, 
                   disable=False if verbose else True,
                   desc='steps') as pbar:

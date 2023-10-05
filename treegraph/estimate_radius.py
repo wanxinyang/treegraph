@@ -124,11 +124,7 @@ def run(pc, centres, path_ids, dz1=.3, dz2=1., branch_list=None, plot=False):
 #             ax[1].errorbar(branch[attr], branch['sf_radius']*1e3, yerr=branch.cv*1e2, ls='none')
             if attr == 'distance_from_base':
                 ax[1].set_xlabel('Distance from tree base (m)', fontsize=12)
-#                 xmin, ymin = 0, 0
-#                 xmax = branch.distance_from_base.max() * 1.03
-#                 ymax = branch.sf_radius.max() * 1.03 * 1e3
-#                 ax[1].set_xlim(xmin, xmax)
-#                 ax[1].set_ylim(ymin, ymax)
+
             if attr == 'ncyl':
                 ax[1].set_xlabel('Sequence of segment in a branch', fontsize=12)
 #             ax[1].set_ylabel('Estimated radius (mm)', fontsize=12)
@@ -226,15 +222,6 @@ def branch_transform_2(pc, centres, path_ids, auto=True, nbranch=0,
             ax[1].plot(yy(tt), zz(tt), c='b', linewidth=2.5) # spline
             ax[1].scatter(pc.y, pc.z, s=0.5, c='grey', alpha=0.5) # point cloud
             
-            # ## 3D view
-            # fig3 = plt.figure(figsize=(10, 10))
-            # ax = fig3.add_subplot(projection='3d')
-            # ax.scatter(xs=x, ys=y, zs=z, s=10) # centre nodes
-            # tt = np.linspace(t.min(), t.max())
-            # ax.plot(xx(tt), yy(tt), zz(tt), c='r', linewidth=2.5) # spline
-            # ax.scatter(xs=pc.x, ys=pc.y, zs=pc.z, s=0.01, c='grey', alpha=0.2) # point cloud
-            # fig3.suptitle(f'Branch {nbranch}, interpolated by {interp}', fontsize=14)
-        
         ### remove curve from pc
         pc.loc[:, 'tx'] = pc.x - xx(pc.distance_from_base)
         pc.loc[:, 'ty'] = pc.y - yy(pc.distance_from_base)

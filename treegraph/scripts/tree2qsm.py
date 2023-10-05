@@ -144,32 +144,6 @@ dbh_height = {dbh_height}\ntxt_file = {txt_file}\nsave_graph = {save_graph}"
             f.write(f"\nSkeleton points: {len(np.unique(self.centres.node_id))}")
 
 
-    # ### filter out large jump in each segmented branch ###
-    # # filter out large jump at the end of a branch 
-    # # run filtering through all branches
-    # group_branch = self.centres.groupby('nbranch')
-    # sent_back = group_branch.apply(common.filt_large_jump, bin_dict=self.bins).values
-    # centres_filt = pd.DataFrame()
-    # for val in sent_back:
-    #     if len(val) == 0:
-    #         continue
-    #     centres_filt = centres_filt.append(val)
-    
-    # if filtering:
-    #     self.centres = centres_filt
-    #     if txt_file:
-    #         with open(o_f+'.txt', 'a') as f:
-    #             f.write('\n\n----Filter large jump at branch end----')
-    #             f.write(f'\nSkel nodes before filtering: {len(self.centres)}')
-    #             f.write(f'\nSkel nodes after filtering: {len(centres_filt)}')
-
-
-    # # update tip nodes as some outliers have been filtered out
-    # for n in self.centres.nbranch.unique():
-    #     lastcyl = self.centres[self.centres.nbranch == n].ncyl.max()
-    #     self.centres.loc[(self.centres.nbranch == n) & (self.centres.ncyl == lastcyl), 'is_tip'] = True
-    
-    
     ### estimate branch radius ###
     # determine the z-interval for radius estimation (unit: metre)
     trunk = self.centres[self.centres.nbranch == 0]
@@ -278,21 +252,6 @@ dbh_height = {dbh_height}\ntxt_file = {txt_file}\nsave_graph = {save_graph}"
     tree['trunk_vol'] = trunk.vol.sum()
     tree['trunk_length'] = trunk.length.sum()
 
-    # ## stem info (tree base to first branching node)
-    # trunk = self.centres[self.centres.nbranch == 0].sort_values(by=['ncyl'])
-    # fur_nid =  trunk[self.centres.n_furcation > 0].node_id.values[0]
-    # # stem_nid = self.path_ids[fur_nid]
-    # stem_nid = self.path_ids[str(float(fur_nid))]
-    # stem_pc = self.pc[self.pc.node_id.isin(stem_nid)]
-    # for i in range(len(stem_nid)-1):
-    #     if i == 0:
-    #         stem_cyls = self.cyls[(self.cyls.p1 == stem_nid[i+1]) & (self.cyls.p2 == stem_nid[i])]
-    #     else:
-    #         stem_cyls = stem_cyls.append(self.cyls[(self.cyls.p1 == stem_nid[i+1]) & 
-    #                                     (self.cyls.p2 == stem_nid[i])])
-    # tree['stem_vol'] = stem_cyls.vol.sum()
-    # tree['stem_length'] = stem_cyls.length.sum()
-
     self.tree = pd.DataFrame(data=tree, index=[0])
     
     ## programme running time
@@ -311,8 +270,6 @@ dbh_height = {dbh_height}\ntxt_file = {txt_file}\nsave_graph = {save_graph}"
             f.write(f"\nTot. surface area: {tree['surface_area']:.4f} m2")
             f.write(f"\nTrunk len: {tree['trunk_length']:.2f} m")
             f.write(f"\nTrunk volume: {tree['trunk_vol']:.4f} m³ = {tree['trunk_vol']*1e3:.1f} L")
-            # f.write(f"\nStem len: {tree['stem_length']:.2f} m")
-            # f.write(f"\nStem volume: {tree['stem_vol']:.4f} m³ = {tree['stem_vol']*1e3:.1f} L")
             f.write(f"\nN tips: {tree['N_tip']:.0f}")
             f.write(f"\nAvg tip width: {tree['tip_rad_mean']*2:.3f} ± {tree['tip_rad_std']*2:.3f} m")
             f.write(f"\nAvg distance between tips: {tree['dist_between_tips']:.3f} m")     

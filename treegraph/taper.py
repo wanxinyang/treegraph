@@ -5,7 +5,7 @@ from scipy import optimize
 from pandarallel import pandarallel
 from tqdm.autonotebook import tqdm
 
-## wx version 4 (parallel running)
+
 def run(centres, path_ids, tip_radius=None, est_rad='sf_radius', 
         branch_list=None, verbose=False, plot=False):
     '''
@@ -38,7 +38,6 @@ def run(centres, path_ids, tip_radius=None, est_rad='sf_radius',
         sent_back = groupby.parallel_apply(radius_correct, centres, path_ids, 
                                            tip_radius, est_rad).values
 
-    # create and append clusters and filtered pc
     samples_new = pd.DataFrame()
     for x in sent_back:
         if len(x[0]) == 0: continue
@@ -88,10 +87,9 @@ def radius_correct(samples, centres, path_ids, tip_radius, est_rad,
     X = np.linspace(path.distance_from_base.min(), path.distance_from_base.max(), 20)
     cut = pd.cut(path.distance_from_base, X)
     bounds = path.groupby(cut).mean().drop(columns=['node_id', est_rad]) 
-    bounds.distance_from_base = path.groupby(cut).distance_from_base.max() # distance measured to the end of the branch
+    bounds.distance_from_base = path.groupby(cut).distance_from_base.max() 
     bounds.set_index(np.arange(len(bounds)), inplace=True)
     bounds.loc[:, 'upp'] = bounds.m_radius * 1.2
-#         bounds.loc[:, 'low'] = bounds.m_radius * .75
     bounds.loc[bounds.cv>0, 'weight'] = 1. / bounds[bounds.cv>0].cv
     bounds.loc[~(bounds.cv>0), 'weight'] = 0.
     idx = bounds.index.max()
@@ -124,13 +122,11 @@ def radius_correct(samples, centres, path_ids, tip_radius, est_rad,
             pass
 
     branch.loc[:, L] = best_func(branch.distance_from_base, *best_para)           
-    # branch.loc[branch.upp <= 0, 'upp'] = branch[branch.upp > 0].upp.min()
     branch.loc[branch[L] <= 0, 'upp'] = .0015
 
     # adjust radii that are NAN or fall beyond upper bound
     branch.loc[np.isnan(branch.m_radius), 'm_radius'] = branch.loc[np.isnan(branch.m_radius)].upp
     branch.loc[branch.m_radius > branch.upp, 'm_radius'] = branch.loc[branch.m_radius > branch.upp].upp  
-#         branch.loc[branch.m_radius < branch.low, 'm_radius'] = branch.loc[branch.m_radius < branch.upp].low
 
     # update centres
     if nbranch == 0:
@@ -138,7 +134,7 @@ def radius_correct(samples, centres, path_ids, tip_radius, est_rad,
     else:
         samples.loc[samples.node_id.isin(branch.node_id.values), 'm_radius'] = branch.m_radius 
 
-    if plot:  # plot 
+    if plot:  
         fig, axs = plt.subplots(1,1,figsize=(8,4))
         ax = [axs]
         ax[0].plot(bounds['distance_from_base'], bounds['upp'], 'go',
@@ -162,7 +158,6 @@ def radius_correct(samples, centres, path_ids, tip_radius, est_rad,
         ax[0].set_ylabel('Estimated radius (cm)')
         if xlim is not None:
             ax[0].set_xlim(xlim[0], xlim[1])
-            # ax[0].set_xlim([bounds['distance_from_base'].min(), branch['distance_from_base'].max()])
         if ylim is not None:
             ax[0].set_ylim(ylim[0], ylim[1])
         ax[0].set_title(f'Branch {nbranch}')
@@ -171,61 +166,3 @@ def radius_correct(samples, centres, path_ids, tip_radius, est_rad,
         fig.tight_layout()
         
     return [samples]
-
-
-def plot_mean_with_CI(centres, branch_list, attr_list, interval=.5,
-                      labels=['before correction', 'after correction']):
-    """
-    This function calculates the mean of given attributes at each distance from base and
-    plots the means with a 95% confidence interval (CI).
-
-    Parameters:
-    centres (DataFrame): Data of centres with columns ['nbranch', 'distance_from_base'] + attr_list.
-    branch_list (list): List of branches to consider.
-    attr_list (list): The list of attributes to calculate the mean and CI for.
-
-    Returns:
-    None
-    """
-    # Get a subset of centres belonging to the branches in branch_list
-    selected_centres = centres[centres.nbranch.isin(branch_list)].copy()
-
-    # Define bins based on the maximum distance from base, using the defined interval
-    bins = np.arange(0, selected_centres.distance_from_base.max() + interval, interval)
-
-    # Assign each centre to a bin based on its distance_from_base
-    selected_centres['dfb_bin'] = pd.cut(selected_centres.distance_from_base, bins=bins)
-
-    fig = plt.figure(figsize=(10,5))
-
-    for i, attr in enumerate(attr_list):
-        # Group by bin and calculate mean and standard deviation of the selected attribute for each bin
-        group_data = selected_centres.groupby(['dfb_bin']).agg({attr: ['mean', 'std']}).reset_index()
-
-        # Rename the columns for better readability
-        group_data.columns = ['dfb_bin', f'{attr}_mean', f'{attr}_std']
-
-        # Convert the bin intervals to their midpoints for better representation
-        group_data['dfb_bin'] = group_data.dfb_bin.apply(lambda x: x.mid)
-
-        # Calculate upper and lower bounds of the 95% CI for the mean radius
-        group_data['upper_bound'] = group_data[f'{attr}_mean'] + 1.96 * group_data[f'{attr}_std']
-        group_data['lower_bound'] = group_data[f'{attr}_mean'] - 1.96 * group_data[f'{attr}_std']
-
-        # Plot the mean and CI
-        plt.plot(group_data.dfb_bin, group_data[f'{attr}_mean']*100, label=f'{labels[i]}')  # Plot the mean
-        plt.fill_between(group_data.dfb_bin, 
-                         group_data.lower_bound*100, 
-                         group_data.upper_bound*100, alpha=.3)  # Plot 95% CI
-
-    # plot main furcation node location
-    stem_fur = centres[centres.ninternode == 0].distance_from_base.max()
-    plt.axvline(x=stem_fur, color='green', linestyle='--', alpha=0.3, 
-                label='main branching node')
-
-    plt.xlabel('Distance from base (m)', fontsize=12)
-    plt.ylabel('Estimated branch radius (cm)', fontsize=12)
-    plt.legend()
-    plt.show()
-
-    return fig

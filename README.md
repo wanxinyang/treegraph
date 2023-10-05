@@ -1,17 +1,6 @@
 # TreeGraph
 
-Treegraph is a Python library for extracting structural parameters from point clouds of individual trees.
-
-## Installation
-
-1.  Create a conda environment and install dependencies:
-    `$ conda env create -f environment.yaml`
-
-2.  Download the source codes from Github:
-    `$ git clone https://github.com/wanxinyang/treegraph.git --branch v1.8`
-
-3.  Copy the source codes to the conda env site-packages directory:
-    `$ cp -r treegraph/treegraph/ ~/.conda/envs/treegraph/lib/python3.7/site-packages/`
+Treegraph is a Python library for extracting structural parameters from terrestrial LiDAR point clouds of individual trees.
 
 ## Usage
 
@@ -59,7 +48,7 @@ Example job_script.sh for SLURM system
     # scheduling queue
     #SBATCH --partition=high-mem
     # max runtime limit
-    #SBATCH --time=12:00:00
+    #SBATCH --time=10:00:00
     # job name
     #SBATCH --job-name=treegraph
     # job output and error output
@@ -76,11 +65,3 @@ Example job_script.sh for SLURM system
     conda activate treegraph
     echo "python ~/miniconda3/envs/treegraph/lib/python3.7/treegraph/scripts/tree2qsm.py -i '$tree'"
     python ~/miniconda3/envs/treegraph/lib/python3.7/treegraph/scripts/tree2qsm.py -i "${tree}"
-
-## Authors
-
-*   Wanxin Yang
-*   Phil Wilkes
-*   Matheus Boni Vicari
-*   Mathias Disney
-

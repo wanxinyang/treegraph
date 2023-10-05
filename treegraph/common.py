@@ -116,17 +116,6 @@ def mean_dNN(pc, n_neighbours=10):
     return mean_dnn_per_slice
 
 
-# def mean_dNN(pc, n_neighbours=10):
-#     if len(pc) < 100:
-#         mean_dnn_per_slice = np.nan
-#     else:
-#         nn = NearestNeighbors(n_neighbors=n_neighbours).fit(pc[['x','y','z']])
-#         dists, indices = nn.kneighbors()
-#         mean_dnn_per_point = np.mean(dists, axis=1)
-#         mean_dnn_per_slice = np.mean(mean_dnn_per_point)
-#     return mean_dnn_per_slice
-
-
 # filter out large jump at the end of a branch
 def filt_large_jump(centres, bin_dict=None):
     '''

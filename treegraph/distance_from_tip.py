@@ -12,11 +12,7 @@ def run(pc, centres, bins, vlength=.005, verbose=False, min_pts=0):
                                   PC_nodes, on='parent_node', how='left')
     
     new_pc = pd.DataFrame()
-    
-    # single_node_branch = centres.nbranch.value_counts() # snb 
-    # snb_nbranch = single_node_branch.loc[single_node_branch == 1].index
-    # centres.loc[centres.nbranch.isin(snb_nbranch), 'nbranch'] = centres.loc[centres.nbranch.isin(snb_nbranch), 'parent']
-    
+      
     if verbose: print('reattributing branches...')
     for nbranch in tqdm(np.sort(centres.nbranch.unique()), 
                         total=len(centres.nbranch.unique()), 

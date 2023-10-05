@@ -527,13 +527,7 @@ def plot_radius_single_plot(centres, radius='m_radius',
             ax[0].set_ylim(ymin, ymax)
         if attr == 'ncyl':
             ax[0].set_xlabel('Sequence of segment in a branch', fontsize=12)
-            # plot furcation nodes
-            # for j in branch.ninternode.unique()[:-1]:
-            #     ncyl = branch[branch.ninternode == j].ncyl.values
-            #     nfur = branch[branch.ncyl == ncyl[-1]].n_furcation.values[0]
-            #     ax[0].axvline(x=ncyl[-1], ls="--", c="green")
-                # yloc = branch.sf_radius.max() * 1e3
-                # ax[0].text(ncyl[-1], yloc, f'{nfur+1}')
+
         if errorbar:
             if 'unc' in centres.columns:
                 ax[0].errorbar(branch[attr], branch[radius]*1e3, yerr=branch.unc, ls='none')
@@ -576,8 +570,6 @@ def plot_radius_combine(centres, branch_list=None, xlim=None, ylim=None):
         xmin, xmax = xlim
     if ylim is not None:
         ymin, ymax = ylim        
-    # print(f'xmin, xmax = {xmin:.0f}, {xmax:.0f}')
-    # print(f'ymin, ymax = {ymin:.0f}, {ymax:.0f}')
 
     # loop over each branch
     for nbranch in np.unique(centres.nbranch):
