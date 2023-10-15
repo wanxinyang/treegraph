@@ -39,8 +39,6 @@ def array_to_graph(arr, base_id, kpairs, knn, nbrs_threshold,
     This funcions uses a NearestNeighbor search to determine points adajency.
     The NNsearch results are used to select pairs of points (or nodes) that
     have a common edge.
-
-
     Parameters
     ----------
     arr : array
@@ -65,7 +63,6 @@ def array_to_graph(arr, base_id, kpairs, knn, nbrs_threshold,
     return_step : bool
         Option to select if function should output the step register, which
         can be used to debug the creationg of graph 'G'.
-
     Returns
     -------
     G : networkx graph
@@ -87,8 +84,8 @@ def array_to_graph(arr, base_id, kpairs, knn, nbrs_threshold,
     # Initializing NearestNeighbors search and searching for all 'knn'
     # neighboring points arround each point in 'arr'.
     nbrs = NearestNeighbors(n_neighbors=knn, metric='euclidean',
-                            leaf_size=15, n_jobs=-1).fit(arr)
-    distances, indices = nbrs.kneighbors(arr)
+                        leaf_size=15, n_jobs=-1).fit(arr[['x','y','z']])
+    distances, indices = nbrs.kneighbors(arr[['x','y','z']])
     indices = indices.astype(int)
 
     # Initializing variables for current ids being processed (current_idx)
@@ -103,7 +100,9 @@ def array_to_graph(arr, base_id, kpairs, knn, nbrs_threshold,
     step_register[base_id] = current_step
 
     # Looping while there are still indices (idx) left to process.
-    while idx.shape[0] > 0:
+    # while idx.shape[0] > 0:
+    # wx updated to avoid infinite loop
+    while (idx.shape[0] > 0) & (nbrs_threshold < .5):  
         
         # Increasing a single step count.
         current_step += 1
@@ -130,6 +129,11 @@ def array_to_graph(arr, base_id, kpairs, knn, nbrs_threshold,
                 nn_idx = n[mask1[i]][0:kpairs+1]
                 dd_idx = d[mask1[i]][0:kpairs+1]
                 nntemp.append(nn_idx)
+                
+                # wx adds: add attributes to the node 
+                G.add_node(g, pos=[float(arr.x[g]), float(arr.y[g]), float(arr.z[g])]) # coordinates
+                if 'pid' in arr.columns:
+                    G.add_node(g, pid=(int(arr.pid[g]))) # index in original point cloud
 
                 # Adding current knn selected points as nodes to graph G.
                 add_nodes(G, g, nn_idx, dd_idx, graph_threshold)
@@ -186,6 +190,11 @@ def array_to_graph(arr, base_id, kpairs, knn, nbrs_threshold,
                 nn_idx = n[mask[i]][0:kpairs+1]
                 dd_idx = d[mask[i]][0:kpairs+1]
 
+                # wx adds: add attributes to the node 
+                G.add_node(g, pos=[float(arr.x[g]), float(arr.y[g]), float(arr.z[g])]) # coordinates
+                if 'pid' in arr.columns:
+                    G.add_node(g, pid=(int(arr.pid[g]))) # index in original point cloud
+
                 # Adding current knn selected points as nodes to graph G.
                 add_nodes(G, g, nn_idx, dd_idx, graph_threshold)
 
@@ -222,7 +231,6 @@ def extract_path_info(G, base_id, return_path=True):
 
     """
     Extracts shortest path information from a NetworkX graph.
-
     Parameters
     ----------
     G : networkx graph
@@ -233,7 +241,6 @@ def extract_path_info(G, base_id, return_path=True):
     return_path : boolean
         Option to select if function should output path list for every node
         in G to base_id.
-
     Returns
     -------
     nodes_ids : list
@@ -244,7 +251,6 @@ def extract_path_info(G, base_id, return_path=True):
     path_list : dict
         Dictionary of nodes that comprises the path of every node in G to
         base_id node.
-
     """
 
     # Calculating the shortest path
@@ -271,7 +277,6 @@ def add_nodes(G, base_node, indices, distance, threshold):
     Adds a set of nodes and weighted edges based on pairs of indices
     between base_node and all entries in indices. Each node pair shares an
     edge with weight equal to the distance between both nodes.
-
     Parameters
     ----------
     G : networkx graph
@@ -286,7 +291,6 @@ def add_nodes(G, base_node, indices, distance, threshold):
     threshold : float
         Edge distance threshold. All edges with distance larger than
         'threshold' will not be added to G.
-
     """
 
     for c in np.arange(len(indices)):
@@ -294,4 +298,4 @@ def add_nodes(G, base_node, indices, distance, threshold):
             # If the distance between vertices is less than a given
             # threshold, add edge (i[0], i[c]) to Graph.
             G.add_weighted_edges_from([(base_node, indices[c],
-                                        distance[c])])
+                                        float(distance[c]))])

@@ -1,48 +1,16 @@
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-from matplotlib.patches import Circle
+# This is from https://github.com/philwilkes/FSCT/blob/main/fsct/fit_cylinders.py
+
 from sklearn.decomposition import PCA 
 from scipy import optimize
 from scipy.spatial.transform import Rotation 
 from scipy.stats import variation
-from tqdm.autonotebook import tqdm
-from treegraph.third_party.available_cpu_count import available_cpu_count
-from pandarallel import pandarallel
+import numpy as np
 
-def run(pc, centres, 
-        min_pts=10, 
-        ransac_iterations=50, 
-        sample=100,
-        nb_workers=available_cpu_count(),
-        verbose=False):
+from matplotlib.patches import Circle
+import matplotlib.pyplot as plt
 
-    for c in centres.columns:
-        if 'sf' in c: del centres[c]
-    
-    node_id = centres[centres.n_points > min_pts].sort_values('n_points').node_id.values
+from tqdm.auto import tqdm
 
-    groupby_ = pc.loc[pc.node_id.isin(node_id)].groupby('node_id')
-    pandarallel.initialize(progress_bar=verbose, 
-                           use_memory_fs=True,
-                           nb_workers=min(len(centres), nb_workers))
-    
-    # cyl = groupby_.parallel_apply(RANSAC_helper, ransac_iterations)
-    cyl = groupby_.parallel_apply(RANSAC_helper_2, ransac_iterations, pc, centres)
-
-    cyl = cyl.reset_index()
-    cyl.columns=['node_id', 'result']
-    cyl.loc[:, 'sf_radius'] = cyl.result.apply(lambda c: c[0])
-    cyl.loc[:, 'sf_cx'] =  cyl.result.apply(lambda c: c[1][0])
-    cyl.loc[:, 'sf_cy'] =  cyl.result.apply(lambda c: c[1][1])
-    cyl.loc[:, 'sf_cz'] =  cyl.result.apply(lambda c: c[1][2])
-
-    centres = pd.merge(centres, 
-                       cyl[['node_id', 'sf_radius', 'sf_cx', 'sf_cy', 'sf_cz']], 
-                       on='node_id', 
-                       how='left')
-    
-    return centres
 
 def other_cylinder_fit2(xyz, xm=0, ym=0, xr=0, yr=0, r=1):
     
@@ -86,13 +54,14 @@ def RANSACcylinderFitting4(xyz_, iterations=50, plot=False):
     xyz_mean = xyz_.mean(axis=0)
     xyz_ -= xyz_mean
 
+#     for i in tqdm(range(iterations), total=iterations, display=plot):
     for i in range(iterations):
         
         xyz = xyz_.copy()
         
         # prepare sample 
         sample = xyz.sample(n=20)
-        # sample = xyz.sample(n=max(20, int(len(xyz)*.2))) 
+        # sample = xyz.sample(n=max(10, int(len(xyz)*.2))) 
         xyz = xyz.loc[~xyz.index.isin(sample.index)]
         
         x, y, a, b, radius = other_cylinder_fit2(sample, 0, 0, 0, 0, 0)
@@ -150,8 +119,6 @@ def RANSACcylinderFitting4(xyz_, iterations=50, plot=False):
 
         ax.scatter(Centre[0], Centre[1], marker='+', s=100, c='r')
         ax.add_patch(c)
-        ax.axis('equal')
-
 
     return [radius, centre, bestErr, len(xyz_)]
 
@@ -175,51 +142,14 @@ def NotRANSAC(xyz):
     
     return [radius, centre, np.inf, len(xyz)]
 
-
-def RANSAC_helper_2(dcluster, ransac_iterations, pc, centres, plot=False):
-    # node_id of current cluster
-    nid = np.unique(dcluster.node_id)[0]
-    # branch_id of current centre node 
-    nbranch = centres[centres.node_id == nid].nbranch.values[0]
-    # number of centres (segments) of this branch
-    nseg = len(centres[centres.nbranch == nbranch])
-    # the sequence id of current centre node in its branch
-    ncyl = centres[centres.node_id == nid].ncyl.values[0]
-    # print(f'node_id = {nid}, nbranch = {nbranch}, nseg = {nseg}, ncyl = {ncyl}')
-
-    # sample points for cyl fitting
-    if nseg == 1:
-        samples = dcluster
-    if ncyl == 0:  # the first segment of this branch
-        node_list = centres[(centres.nbranch == nbranch) & (centres.ncyl.isin([0,1]))].node_id.values
-        samples = pc[pc.node_id.isin(node_list)]
-    if ncyl == (nseg-1):  # the last segment of this branch
-        node_list = centres[(centres.nbranch == nbranch) & (centres.ncyl.isin([nseg-2,nseg-1]))].node_id.values
-        samples = pc[pc.node_id.isin(node_list)]
-    else:
-        node_list = centres[(centres.nbranch == nbranch) & (centres.ncyl.isin([ncyl-1,ncyl+1]))].node_id.values
-        samples = pc[pc.node_id.isin(node_list)]
-    
-    # fit cyl to samples using RANSAC
-    if len(samples) == 0: # don't think this is required but....
-        cylinder = [np.nan, np.array([np.inf, np.inf, np.inf]), np.inf, len(samples)]
-    elif len(samples) <= 10:
-        cylinder = [np.nan, samples[['x', 'y', 'z']].mean(axis=0).values, np.inf, len(samples)]
-    elif len(samples) <= 20:
-        cylinder = NotRANSAC(samples)
-    else:
-        cylinder = RANSACcylinderFitting4(samples[['x', 'y', 'z']], iterations=ransac_iterations, plot=plot)
-
-    return cylinder
-
-
 def RANSAC_helper(xyz, ransac_iterations, plot=False):
+
 #     try:
         if len(xyz) == 0: # don't think this is required but....
             cylinder = [np.nan, np.array([np.inf, np.inf, np.inf]), np.inf, len(xyz)]
-        elif len(xyz) <= 10:
+        elif len(xyz) < 10:
             cylinder = [np.nan, xyz[['x', 'y', 'z']].mean(axis=0).values, np.inf, len(xyz)]
-        elif len(xyz) <= 20:
+        elif len(xyz) < 50:
             cylinder = NotRANSAC(xyz)
         else:
             cylinder = RANSACcylinderFitting4(xyz[['x', 'y', 'z']], iterations=ransac_iterations, plot=plot)

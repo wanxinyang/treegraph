@@ -12,11 +12,7 @@ def run(pc, centres, bins, vlength=.005, verbose=False, min_pts=0):
                                   PC_nodes, on='parent_node', how='left')
     
     new_pc = pd.DataFrame()
-    
-    single_node_branch = centres.nbranch.value_counts() # snb 
-    snb_nbranch = single_node_branch.loc[single_node_branch == 1].index
-    centres.loc[centres.nbranch.isin(snb_nbranch), 'nbranch'] = centres.loc[centres.nbranch.isin(snb_nbranch), 'parent']
-    
+      
     if verbose: print('reattributing branches...')
     for nbranch in tqdm(np.sort(centres.nbranch.unique()), 
                         total=len(centres.nbranch.unique()), 
@@ -33,10 +29,10 @@ def run(pc, centres, bins, vlength=.005, verbose=False, min_pts=0):
         if len(branch_pc) > 1000:
             dfb_min = branch_pc['distance_from_base'].min()
             try:
-                branch_pc = distance_from_base.run(branch_pc, 
+                branch_pc, branch_G = distance_from_base.run(branch_pc, 
                                                    base_location=branch_pc.distance_from_base.idxmin(),
-                                                   downsample_cloud=vlength,
-                                                   knn=100)
+                                                   cluster_size=self.cluster_size,
+                                                   base_correction=False)
             except: pass
             branch_pc.distance_from_base += dfb_min
             
